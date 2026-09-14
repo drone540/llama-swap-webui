@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>llama-swap WebUI — All-in-One AI Client</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<style>
+  html.dark body { background:#0b0e14; color:#e6e9f0; }
+  body { background:#f4f5f7; color:#111827; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:#3b4252; border-radius:8px; border:2px solid transparent; background-clip:content-box; }
+  .term { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .msg-user { background:rgba(59,130,246,.14); border:1px solid rgba(59,130,246,.35); }
+  .msg-assistant { background:rgba(148,163,184,.10); border:1px solid rgba(148,163,184,.25); }
+  .msg-tool { background:rgba(16,185,129,.10); border:1px solid rgba(16,185,129,.3); }
+  .tabbtn.active { background:#2563eb; color:#fff; }
+  .chatitem.active { background:rgba(37,99,235,.18); border-color:#2563eb; }
+  details > summary { cursor:pointer; }
+  canvas#imgCanvas { max-width:100%; border-radius:.5rem; }
+  .drop-active { outline:2px dashed #2563eb !important; background:rgba(37,99,235,.12) !important; }
+  /* rendered markdown (assistant messages) */
+  .md { overflow-wrap:anywhere; }
+  .md p { margin:.4em 0; } .md p:first-child { margin-top:0; } .md p:last-child { margin-bottom:0; }
+  .md ul, .md ol { margin:.4em 0 .4em 1.2em; } .md ul { list-style:disc; } .md ol { list-style:decimal; }
+  .md li { margin:.15em 0; } .md li::marker { opacity:.6; }
+  .md h1,.md h2,.md h3,.md h4 { font-weight:700; margin:.6em 0 .3em; line-height:1.3; }
+  .md h1 { font-size:1.15em; } .md h2 { font-size:1.08em; } .md h3 { font-size:1em; }
+  .md a { color:#60a5fa; text-decoration:underline; }
+  .md table { border-collapse:collapse; margin:.5em 0; font-size:.92em; display:block; overflow-x:auto; }
+  .md th,.md td { border:1px solid rgba(148,163,184,.35); padding:.25em .6em; text-align:left; }
+  .md th { background:rgba(148,163,184,.14); }
+  .md blockquote { border-left:3px solid rgba(148,163,184,.4); padding-left:.6em; margin:.4em 0; opacity:.85; }
+  .md code:not(pre code) { background:rgba(148,163,184,.18); border:1px solid rgba(148,163,184,.25); border-radius:.3rem; padding:.05em .35em; font-size:.88em; }
+  .md pre { background:#0d1117; border:1px solid rgba(148,163,184,.3); border-radius:.5rem; padding:.6rem; overflow-x:auto; font-size:12px; }
+  .md pre code { background:transparent !important; border:0 !important; padding:0 !important; font-size:inherit; }
+  .codewrap { position:relative; } .codewrap > pre { margin:0; }
+  .copybtn { position:absolute; top:.35rem; right:.35rem; font-size:10px; line-height:1; padding:.3rem .5rem;
+    border-radius:.35rem; background:rgba(51,65,85,.9); border:1px solid rgba(148,163,184,.4); color:#e2e8f0;
+    opacity:0; transition:opacity .15s; cursor:pointer; }
+  .codewrap:hover .copybtn, .copybtn:focus-visible { opacity:1; }
+  .copybtn:hover { background:#2563eb; border-color:#2563eb; }
+  .msgbtns button { text-decoration:underline; text-underline-offset:2px; }
+  .msgbtns button:hover { color:#fff; }
+  /* context menus (chat ⋯, folder options) */
+  .ctxmenu { position:absolute; z-index:60; min-width:12rem; max-width:80vw; padding:.25rem;
+    background:#0f172a; border:1px solid #475569; border-radius:.5rem; box-shadow:0 10px 30px rgba(0,0,0,.5); }
+  .chatmenu { right:.25rem; top:100%; }
+  .foldermenu { left:0; top:calc(100% + .25rem); }
+  .ctxmenu button { display:block; width:100%; text-align:left; font-size:12px;
+    padding:.4rem .6rem; border-radius:.35rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ctxmenu button:hover { background:rgba(37,99,235,.4); }
+  .ctxhead { font-size:10px; text-transform:uppercase; letter-spacing:.05em; opacity:.5; padding:.35rem .6rem .1rem; }
+  .ctxsep { border-top:1px solid #334155; margin:.25rem 0; }
+  .ctxsub { max-height:12rem; overflow-y:auto; }
+  .ctxdanger { color:#f87171; }
+  .ctxcur { color:#93c5fd; }
+  /* searchable model pickers: regular dropdown face + search box at top of panel */
+  .combo { position:relative; display:inline-block; min-width:0; }
+  .combo:has(> input.hidden) { display:none; } /* log-target picker visibility */
+  .combo-face { display:inline-flex; align-items:center; gap:.35rem; max-width:100%;
+    overflow:hidden; cursor:pointer; text-align:left; }
+  .combo-face > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .combo-face::after { content:''; width:.55em; height:.55em; flex:none; opacity:.55;
+    background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5Z' fill='%23cbd5e1'/%3E%3C/svg%3E"); }
+  .combo-list { position:absolute; z-index:50; left:0; top:100%; min-width:14rem; max-width:80vw;
+    margin-top:.25rem; background:#0f172a; border:1px solid #475569; border-radius:.5rem;
+    box-shadow:0 10px 30px rgba(0,0,0,.5); overflow:hidden; }
+  /* open upward when the face sits near the viewport bottom (e.g. composer) */
+  .combo-up .combo-list { top:auto; bottom:100%; margin-top:0; margin-bottom:.25rem; }
+  .combo-search { display:block; width:100%; box-sizing:border-box; background:#020617; border:0;
+    border-bottom:1px solid #475569; color:#e2e8f0; font-size:12px; padding:.45rem .6rem; outline:none; }
+  .combo-search:focus { border-bottom-color:#2563eb; }
+  .combo-items { max-height:16rem; overflow-y:auto; font-size:12px; padding:.25rem; }
+  .combo-item { padding:.4rem .6rem; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .combo-item:hover, .combo-item.hi { background:rgba(37,99,235,.4); }
+  .combo-empty { padding:.4rem .6rem; opacity:.6; }
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+<!-- ══ TOP BAR ══ -->
+<header class="flex items-center gap-2 px-3 py-2 border-b border-slate-700/40 bg-slate-900 text-slate-100 shrink-0">
+  <button id="btnSidebar" title="Toggle sidebar" class="p-2 rounded hover:bg-slate-700"><i data-lucide="menu" class="w-5 h-5"></i></button>
+  <span class="font-bold text-sm whitespace-nowrap hidden sm:inline">🦙 llama-swap WebUI</span>
+  <label class="text-xs opacity-70 ml-2">Active Model:</label>
+  <input id="selActiveModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="text-xs bg-slate-800 border border-slate-600 rounded px-2 py-1 max-w-[220px]">
+  <label class="text-xs opacity-70 ml-2">API Mode:</label>
+  <select id="selApiMode" class="text-xs bg-slate-800 border border-slate-600 rounded px-2 py-1">
+    <option value="openai">OpenAI Chat</option>
+    <option value="responses">OpenAI Responses</option>
+    <option value="anthropic">Anthropic</option>
+  </select>
+  <span id="capsBadges" class="hidden lg:flex gap-1 ml-2 text-[10px]"></span>
+  <span class="flex-1"></span>
+  <span id="healthDot" title="/health" class="text-xs mr-1">⚪</span>
+  <button id="btnSettings" title="Settings" class="p-2 rounded hover:bg-slate-700"><i data-lucide="settings" class="w-5 h-5"></i></button>
+</header>
+
+<div class="flex flex-1 min-h-0">
+<!-- ══ SIDEBAR ══ -->
+<aside id="sidebar" class="w-64 shrink-0 border-r border-slate-700/40 bg-slate-900/60 text-slate-200 flex flex-col min-h-0">
+  <div class="p-2 space-y-2">
+    <button id="btnNewChat" class="w-full flex items-center gap-2 text-sm bg-blue-600 hover:bg-blue-500 rounded px-3 py-2"><i data-lucide="plus" class="w-4 h-4"></i> New Chat</button>
+    <div class="relative">
+      <i data-lucide="search" class="w-4 h-4 absolute left-2 top-2.5 opacity-60"></i>
+      <input id="inpSearch" placeholder="Search chats..." class="w-full text-xs bg-slate-800 border border-slate-600 rounded pl-8 pr-2 py-1.5">
+    </div>
+  </div>
+  <div id="chatList" class="flex-1 overflow-y-auto px-2 pb-2 space-y-1"></div>
+  <div class="p-2 border-t border-slate-700/40 text-[11px] opacity-80">
+    <div class="font-semibold mb-1">Prompt templates</div>
+    <div class="flex gap-1">
+      <select id="selTemplate" class="flex-1 text-[11px] bg-slate-800 border border-slate-600 rounded px-1 py-1"></select>
+      <button id="btnUseTemplate" class="px-2 rounded bg-slate-700 hover:bg-slate-600" title="Insert template into chat box">Use</button>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<main class="flex-1 flex flex-col min-w-0 min-h-0">
+  <div id="corsBanner" class="hidden px-3 py-1.5 text-[11px] bg-amber-900/60 border-b border-amber-600 text-amber-100 shrink-0">
+    ⚠️ This page is cross-origin to llama-swap, whose native endpoints (<span class="term">/health /running /profiles /metrics /logs</span>) send no CORS headers, so the browser blocks them. Chat &amp; <span class="term">/v1/*</span> endpoints are unaffected.
+    <button id="btnSameOrigin" class="hidden ml-2 px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-semibold">Switch API to this origin</button>
+    <span class="opacity-70">(needs <span class="term">python serve.py</span> running in the WebUI folder on this port — plain file servers don't proxy)</span>
+    <button id="btnCorsHide" class="ml-2 underline">dismiss</button>
+  </div>
+  <nav class="flex gap-1 px-2 py-1.5 border-b border-slate-700/40 bg-slate-900/40 text-xs overflow-x-auto shrink-0" id="tabbar">
+    <button data-tab="chat" class="tabbtn active flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="message-square" class="w-3.5 h-3.5"></i>Chat</button>
+    <button data-tab="complete" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="terminal" class="w-3.5 h-3.5"></i>Complete</button>
+    <button data-tab="image" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="image" class="w-3.5 h-3.5"></i>Image</button>
+    <button data-tab="speech" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Speech</button>
+    <button data-tab="transcribe" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="audio-lines" class="w-3.5 h-3.5"></i>Transcribe</button>
+    <button data-tab="embed" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="binary" class="w-3.5 h-3.5"></i>Embed</button>
+    <button data-tab="rerank" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="list-ordered" class="w-3.5 h-3.5"></i>Rerank</button>
+    <button data-tab="system" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="server" class="w-3.5 h-3.5"></i>System</button>
+    <button data-tab="comfy" class="tabbtn flex items-center gap-1 px-3 py-1.5 rounded whitespace-nowrap"><i data-lucide="layout-template" class="w-3.5 h-3.5"></i>ComfyUI</button>
+  </nav>
+
+  <div class="flex-1 overflow-y-auto p-3 min-h-0" id="workspace">
+  <!-- CHAT -->
+  <section id="tab-chat" class="tabpane max-w-4xl mx-auto flex flex-col gap-2">
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <label class="flex items-center gap-1"><input type="checkbox" id="chatStream" checked> stream</label>
+      <label class="flex items-center gap-1"><input type="checkbox" id="chatTools" checked> MCP tools</label>
+      <label>Temp <input id="chatTemp" type="number" step="0.1" min="0" max="2" value="0.7" class="w-14 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <label>MaxTok <input id="chatMaxTok" type="number" value="512" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <span id="chatStats" class="term opacity-80"></span>
+      <span class="flex-1"></span>
+      <button id="btnCountTok" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">count_tokens</button>
+      <button id="btnClearChat" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">Clear</button>
+      <button id="btnRegen" title="regenerate reply from the last user message (keeps the old one as a variant)" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">⟳ Regen</button>
+      <button id="btnExpMd" title="export conversation as markdown" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">⬇ MD</button>
+      <button id="btnExpHtml" title="export conversation as standalone HTML" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">⬇ HTML</button>
+    </div>
+    <details class="text-xs bg-slate-800/50 border border-slate-600/50 rounded p-2">
+      <summary class="font-semibold">MCP tool definitions (mock client-side execution: web_search / web_fetch)</summary>
+      <textarea id="chatToolDefs" rows="4" class="term w-full mt-1 text-[11px] bg-slate-900 border border-slate-600 rounded p-2">[{"name":"web_search","description":"Search the web","input_schema":{"type":"object","properties":{"query":{"type":"string"}}}},{"name":"web_fetch","description":"Fetch a URL as text","input_schema":{"type":"object","properties":{"url":{"type":"string"}}}}]</textarea>
+      <div class="opacity-70 mt-1">Flow: tools are sent with the request (OpenAI <span class="term">tools</span>, Responses <span class="term">function</span> tools, or Anthropic <span class="term">tools</span> shapes). When the model emits a <span class="term">tool_use / tool_calls / function_call</span> block, this UI executes a local mock (<span class="term">web_search</span> via DuckDuckGo Instant Answer API, <span class="term">web_fetch</span> via direct fetch) and feeds results back for up to 3 rounds.</div>
+    </details>
+    <div id="chatMsgs" class="flex flex-col gap-2 min-h-[30vh]"></div>
+    <div class="sticky bottom-0 pb-1">
+      <div class="rounded-xl border border-slate-600 bg-slate-800 focus-within:border-blue-500 p-2">
+        <div id="attachPrev" class="flex flex-wrap gap-2 empty:hidden mb-1"></div>
+        <textarea id="chatInput" rows="3" placeholder="Message… (Enter=send, Shift+Enter=newline)" class="w-full text-sm bg-transparent border-0 focus:outline-none resize-y p-1"></textarea>
+        <div class="flex items-center gap-2 mt-1">
+          <button id="btnAttach" title="attach images (vision models)" class="p-2 rounded hover:bg-slate-700 shrink-0"><i data-lucide="image-plus" class="w-4 h-4"></i></button>
+          <input id="chatModel" data-combo autocomplete="off" spellcheck="false" placeholder="model…" title="Model — click for all, type to filter" class="text-xs w-36 sm:w-48 bg-slate-900 border border-slate-600 rounded px-2 py-1.5">
+          <label class="flex items-center gap-1 text-xs opacity-80 shrink-0" title="reasoning effort — default sends nothing (model default); low/medium/high add a thinking token budget"><span>💭</span><select id="chatThink" class="text-xs bg-slate-900 border border-slate-600 rounded px-1 py-1.5"><option value="default" selected>Reasoning: Default</option><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="max">Max</option></select></label>
+          <span class="flex-1"></span>
+          <button id="btnSend" title="Send" class="p-2.5 rounded bg-blue-600 hover:bg-blue-500 shrink-0"><i data-lucide="send" class="w-5 h-5"></i></button>
+        </div>
+      </div>
+      <input id="filePick" type="file" accept="image/*" multiple class="hidden">
+    </div>
+  </section>
+
+  <!-- COMPLETE -->
+  <section id="tab-complete" class="tabpane hidden max-w-4xl mx-auto flex-col gap-2">
+    <div class="flex flex-wrap gap-2 text-xs items-center">
+      <span>Model:</span><input id="compModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+      <span>Endpoint:</span><select id="compEndpoint" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+        <option value="/v1/completions">/v1/completions</option>
+        <option value="/infill">/infill (prefix/suffix)</option>
+      </select>
+      <label>MaxTok <input id="compMaxTok" type="number" value="128" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <label>Temp <input id="compTemp" type="number" step="0.1" value="0.7" class="w-14 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <button id="btnComplete" class="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500">Generate</button>
+    </div>
+    <label class="text-xs">Prompt / Prefix<textarea id="compPrompt" rows="5" class="term w-full text-sm bg-slate-800 border border-slate-600 rounded p-2" placeholder="The capital of France is"></textarea></label>
+    <label class="text-xs" id="compSuffixWrap">Suffix (infill only)<textarea id="compSuffix" rows="3" class="term w-full text-sm bg-slate-800 border border-slate-600 rounded p-2" placeholder="return 1"></textarea></label>
+    <pre id="compOut" class="term text-xs whitespace-pre-wrap bg-slate-900 border border-slate-700 rounded p-3 min-h-[120px]"></pre>
+  </section>
+
+  <!-- IMAGE -->
+  <section id="tab-image" class="tabpane hidden max-w-5xl mx-auto flex-col gap-2">
+    <div class="flex flex-wrap gap-2 text-xs items-center">
+      <span>Model:</span><input id="imgModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+      <span>API:</span><select id="imgApi" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+        <option value="openai">OpenAI (/v1/images/*)</option>
+        <option value="sdapi">Stable Diffusion (sdapi)</option>
+      </select>
+      <span>Task:</span><select id="imgTask" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+        <option value="txt2img">Text → Image</option>
+        <option value="img2img">Image Edit (img2img / edits)</option>
+      </select>
+      <span>Preset:</span><select id="imgPreset" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+        <option value="512x512">SD 1.5 — 512×512</option>
+        <option value="768x768">SD 1.5 — 768×768</option>
+        <option value="1024x1024">SDXL / Flux — 1024×1024</option>
+        <option value="1024x1792">Flux portrait — 1024×1792</option>
+        <option value="1792x1024">Flux landscape — 1792×1024</option>
+        <option value="1344x768">Z-Image land — 1344×768</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <label>W <input id="imgW" type="number" value="512" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <label>H <input id="imgH" type="number" value="512" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+    </div>
+    <div class="flex flex-wrap gap-2 text-xs items-center">
+      <label>Seed <input id="imgSeed" type="number" value="-1" title="-1 = random" class="w-32 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <button id="btnSeedRand" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">🎲 Randomize</button>
+      <button id="btnSeedRecycle" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">♻ Recycle last</button>
+      <label>Steps <input id="imgSteps" type="number" value="20" class="w-16 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <label>CFG <input id="imgCfg" type="number" step="0.5" value="7.5" class="w-16 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+      <label class="flex-1 min-w-[200px]">LoRA <select id="imgLora" class="w-full bg-slate-800 border border-slate-600 rounded px-1 py-0.5"><option value="">(none — refresh to query /sdapi/v1/loras)</option></select></label>
+      <button id="btnLoras" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">Refresh LoRAs</button>
+    </div>
+    <textarea id="imgPrompt" rows="2" placeholder="Prompt: a red apple, studio light…" class="text-sm bg-slate-800 border border-slate-600 rounded p-2"></textarea>
+    <div id="imgUploadWrap" class="hidden text-xs">
+      <label>Source image (img2img / edit): <input id="imgFile" type="file" accept="image/*" class="text-xs"></label>
+      <canvas id="imgCanvas" class="mt-1 border border-slate-600"></canvas>
+    </div>
+    <div><button id="btnImgGen" class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm">Generate</button>
+    <span id="imgMeta" class="term text-[11px] opacity-80 ml-2"></span></div>
+    <div id="imgOut" class="grid md:grid-cols-2 gap-2"></div>
+  </section>
+
+  <!-- SPEECH -->
+  <section id="tab-speech" class="tabpane hidden max-w-3xl mx-auto flex-col gap-2">
+    <div class="flex flex-wrap gap-2 text-xs items-center">
+      <span>Model:</span><input id="ttsModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+      <button id="btnTtsVoices" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">Reload voices</button>
+      <label>Format <select id="ttsFormat" class="bg-slate-800 border border-slate-600 rounded px-1 py-0.5"><option>mp3</option><option>wav</option><option>opus</option><option>flac</option></select></label>
+      <label>Speed <input id="ttsSpeed" type="number" step="0.1" min="0.25" max="4" value="1" class="w-16 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label>
+    </div>
+    <label class="text-xs">Voice / weighted mix (kokoro style, e.g. <span class="term">af_bella(2)+af_heart(1)</span>)
+      <div class="flex gap-1"><select id="ttsVoice" class="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1"></select>
+      <button id="btnVoiceAdd" title="Append voice to mix" class="px-2 rounded bg-slate-700">+</button></div>
+      <input id="ttsVoiceMix" placeholder="af_bella" class="term mt-1 w-full text-xs bg-slate-800 border border-slate-600 rounded px-2 py-1">
+    </label>
+    <textarea id="ttsInput" rows="5" placeholder="Text to speak…" class="text-sm bg-slate-800 border border-slate-600 rounded p-2"></textarea>
+    <div class="flex gap-2 items-center"><button id="btnTts" class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm">Speak</button>
+    <audio id="ttsAudio" controls class="flex-1 hidden"></audio><a id="ttsDl" class="text-xs underline hidden">download</a></div>
+    <div id="ttsMsg" class="text-xs opacity-80"></div>
+  </section>
+
+  <!-- TRANSCRIBE -->
+  <section id="tab-transcribe" class="tabpane hidden max-w-3xl mx-auto flex-col gap-2">
+    <div class="flex gap-2 text-xs items-center"><span>Model:</span><input id="sttModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+      <label>Language <input id="sttLang" placeholder="en (optional)" class="w-24 bg-slate-800 border border-slate-600 rounded px-1 py-0.5"></label></div>
+    <div id="sttDrop" class="border-2 border-dashed border-slate-600 rounded p-8 text-center text-sm opacity-90">Drop audio here (.mp3 .wav .m4a) or <label class="underline cursor-pointer">browse<input id="sttFile" type="file" accept="audio/*,.mp3,.wav,.m4a" class="hidden"></label></div>
+    <div class="flex gap-2 items-center text-xs">
+      <button id="btnMic" class="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600">🎙 Record mic</button>
+      <button id="btnMicStop" class="px-3 py-1.5 rounded bg-red-700 hover:bg-red-600" disabled>Stop</button>
+      <span id="micStatus" class="opacity-70"></span><span class="flex-1"></span>
+      <button id="btnTranscribe" class="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500">Transcribe</button>
+    </div>
+    <audio id="sttPreview" controls class="w-full hidden"></audio>
+    <pre id="sttOut" class="term text-xs whitespace-pre-wrap bg-slate-900 border border-slate-700 rounded p-3 min-h-[100px]"></pre>
+  </section>
+
+  <!-- EMBED -->
+  <section id="tab-embed" class="tabpane hidden max-w-3xl mx-auto flex-col gap-2">
+    <div class="flex gap-2 text-xs items-center"><span>Model:</span><input id="embModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+      <button id="btnEmbed" class="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500">Embed + similarity</button></div>
+    <label class="text-xs">Text A<textarea id="embA" rows="2" class="w-full text-sm bg-slate-800 border border-slate-600 rounded p-2">The cat sits on the mat.</textarea></label>
+    <label class="text-xs">Text B<textarea id="embB" rows="2" class="w-full text-sm bg-slate-800 border border-slate-600 rounded p-2">A feline rests on a rug.</textarea></label>
+    <pre id="embOut" class="term text-xs whitespace-pre-wrap bg-slate-900 border border-slate-700 rounded p-3 min-h-[100px]"></pre>
+  </section>
+
+  <!-- RERANK -->
+  <section id="tab-rerank" class="tabpane hidden max-w-3xl mx-auto flex-col gap-2">
+    <div class="flex gap-2 text-xs items-center"><span>Model:</span><input id="rerModel" data-combo autocomplete="off" spellcheck="false" placeholder="search model…" title="Click for all models, type to filter" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+      <button id="btnRerank" class="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500">Rerank</button></div>
+    <label class="text-xs">Query<input id="rerQuery" value="capital of France" class="w-full text-sm bg-slate-800 border border-slate-600 rounded p-2"></label>
+    <label class="text-xs">Documents (one per line)<textarea id="rerDocs" rows="5" class="w-full text-sm bg-slate-800 border border-slate-600 rounded p-2">Paris is the capital of France.
+Berlin is the capital of Germany.
+Spaghetti is a kind of pasta.</textarea></label>
+    <pre id="rerOut" class="term text-xs whitespace-pre-wrap bg-slate-900 border border-slate-700 rounded p-3 min-h-[80px]"></pre>
+  </section>
+
+  <!-- SYSTEM -->
+  <section id="tab-system" class="tabpane hidden max-w-5xl mx-auto flex-col gap-3">
+    <div class="grid md:grid-cols-2 gap-3">
+      <div class="bg-slate-800/50 border border-slate-600/50 rounded p-3">
+        <div class="flex items-center gap-2 text-sm font-semibold mb-2"><i data-lucide="cpu" class="w-4 h-4"></i>Running models <span class="flex-1"></span><button id="btnRunning" class="text-xs px-2 py-1 rounded bg-slate-700">Refresh</button></div>
+        <div id="runningList" class="text-xs space-y-1"></div>
+        <button id="btnUnloadAll" class="mt-2 text-xs px-3 py-1.5 rounded bg-red-700 hover:bg-red-600">Unload all models</button>
+      </div>
+      <div class="bg-slate-800/50 border border-slate-600/50 rounded p-3">
+        <div class="flex items-center gap-2 text-sm font-semibold mb-2"><i data-lucide="layers" class="w-4 h-4"></i>Profiles & health</div>
+        <div class="flex gap-2 text-xs items-center mb-2"><select id="selProfile" class="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1"></select>
+          <button id="btnProfiles" class="px-2 py-1 rounded bg-slate-700">Refresh</button>
+          <button id="btnProfileApply" class="px-2 py-1 rounded bg-blue-600">Activate</button></div>
+        <div class="text-xs space-y-1"><div>Health: <span id="sysHealth" class="term">…</span></div><div id="sysMetrics" class="term whitespace-pre-wrap opacity-80"></div></div>
+        <div class="flex gap-2 mt-2"><button id="btnHealth" class="text-xs px-2 py-1 rounded bg-slate-700">Check /health</button>
+        <button id="btnMetrics" class="text-xs px-2 py-1 rounded bg-slate-700">Load /metrics</button></div>
+      </div>
+    </div>
+    <div class="bg-slate-800/50 border border-slate-600/50 rounded p-3">
+      <div class="flex flex-wrap items-center gap-2 text-xs mb-2">
+        <span class="font-semibold text-sm flex items-center gap-1"><i data-lucide="scroll-text" class="w-4 h-4"></i>Live logs</span>
+        <select id="selLogStream" class="bg-slate-800 border border-slate-600 rounded px-2 py-1">
+          <option value="/logs/stream">general (/logs/stream)</option>
+          <option value="/logs/stream/proxy">proxy (/logs/stream/proxy)</option>
+          <option value="/logs/stream/upstream">upstream (/logs/stream/upstream)</option>
+          <option value="model">target model (/logs/stream/{id})…</option>
+        </select>
+        <input id="selLogModel" data-combo autocomplete="off" spellcheck="false" placeholder="model id…" class="bg-slate-800 border border-slate-600 rounded px-2 py-1 hidden">
+        <button id="btnLogConnect" class="px-2 py-1 rounded bg-green-700 hover:bg-green-600">Connect</button>
+        <button id="btnLogDisconnect" class="px-2 py-1 rounded bg-slate-700">Disconnect</button>
+        <button id="btnLogOnce" class="px-2 py-1 rounded bg-slate-700" title="GET /logs snapshot">Snapshot /logs</button>
+        <button id="btnLogClear" class="px-2 py-1 rounded bg-slate-700">Clear</button>
+        <span id="logState" class="opacity-70"></span>
+      </div>
+      <pre id="logView" class="term text-[11px] bg-black text-green-300 rounded p-3 h-64 overflow-y-auto whitespace-pre-wrap"></pre>
+    </div>
+  </section>
+
+  <!-- COMFY -->
+  <section id="tab-comfy" class="tabpane hidden h-[70vh] flex-col gap-2">
+    <div class="text-xs opacity-80">Embedded panel → <span id="comfyUrl" class="term"></span> <button id="btnComfyReload" class="ml-2 px-2 py-0.5 rounded bg-slate-700">Reload</button></div>
+    <div id="comfyMissing" class="hidden text-xs bg-amber-900/40 border border-amber-600 rounded p-3">
+      <span class="font-semibold">ComfyUI backend not found on this server</span> (<span class="term err"></span>).
+      <span class="opacity-80"><span class="term">/comfyui/</span> only exists when llama-swap is configured with a <span class="term">comfyui_auto</span> model (docker-based, see the llama-swap docs / GitHub issue for the <span class="term">comfyui_auto</span> config snippet). Without it, this tab has nothing to embed — image generation still works via the Image tab.</span>
+    </div>
+    <iframe id="comfyFrame" class="flex-1 w-full rounded border border-slate-600 bg-slate-900" style="min-height:60vh"></iframe>
+  </section>
+  </div>
+</main>
+</div>
+
+<!-- ══ STATUS BAR ══ -->
+<footer class="flex items-center gap-3 px-3 py-1.5 border-t border-slate-700/40 bg-slate-900 text-slate-200 text-xs shrink-0">
+  <span id="sysStatus">System Status: ⚪ checking…</span>
+  <button id="btnUnloadAll2" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600">Unload All Models</button>
+  <span class="flex-1"></span>
+  <span>Profile:</span><select id="selProfile2" class="bg-slate-800 border border-slate-600 rounded px-2 py-0.5"></select>
+</footer>
+
+<!-- ══ SETTINGS MODAL ══ -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+  <div class="bg-slate-800 border border-slate-600 rounded-lg p-4 w-[min(480px,92vw)] space-y-2 text-sm">
+    <div class="font-bold flex items-center gap-2"><i data-lucide="settings" class="w-4 h-4"></i>Settings <span class="flex-1"></span><button id="btnSettingsClose" class="p-1 hover:bg-slate-700 rounded"><i data-lucide="x" class="w-4 h-4"></i></button></div>
+    <label class="block text-xs">API Base URL<input id="setApiBase" class="mt-0.5 w-full term bg-slate-900 border border-slate-600 rounded px-2 py-1.5"></label>
+    <label class="block text-xs">Theme<select id="setTheme" class="mt-0.5 w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5"><option value="dark">dark</option><option value="light">light</option></select></label>
+    <label class="block text-xs">Default chat model<input id="setChatModel" class="mt-0.5 w-full term bg-slate-900 border border-slate-600 rounded px-2 py-1.5"></label>
+    <div class="flex gap-2 pt-1"><button id="btnSettingsSave" class="flex-1 py-1.5 rounded bg-blue-600 hover:bg-blue-500">Save & reconnect</button>
+    <button id="btnExport" class="px-3 rounded bg-slate-700" title="Download localStorage JSON">Export</button>
+    <label class="px-3 py-1.5 rounded bg-slate-700 cursor-pointer" title="Import localStorage JSON">Import<input id="inpImport" type="file" accept="application/json" class="hidden"></label></div>
+    <details class="text-xs bg-slate-900 border border-slate-600 rounded p-2">
+      <summary class="cursor-pointer font-semibold">CORS / connection help</summary>
+      <div class="opacity-80 mt-1">llama-swap's native endpoints (<span class="term">/health /running /profiles /metrics /logs</span>) send no CORS headers, so browsers block them when the page is cross-origin (including <span class="term">file://</span>). Chat &amp; <span class="term">/v1/*</span> endpoints proxy through and work fine. For full System-tab functionality, run the bundled zero-dependency proxy next to this file:<br><span class="term">python serve.py --upstream http://192.168.1.22:8080 --port 8000</span><br>then open <span class="term">http://localhost:8000</span> and set API Base URL to <span class="term">http://localhost:8000</span> (same origin = no CORS involved).</div>
+    </details>
+    <button id="btnWipe" class="w-full text-xs text-red-400 hover:text-red-300">Erase all local data</button>
+  </div>
+</div>
+<!-- ══ FOLDER SETTINGS MODAL ══ -->
+<div id="folderModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+  <div class="bg-slate-800 border border-slate-600 rounded-lg p-4 w-[min(480px,92vw)] space-y-2 text-sm">
+    <div class="font-bold">📁 Folder settings</div>
+    <label class="block text-xs">Name<input id="fldName" maxlength="60" class="mt-0.5 w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5"></label>
+    <label class="block text-xs">System prompt <span class="opacity-60">(prepended, hidden, to every new chat started in this folder)</span><textarea id="fldSystem" rows="4" placeholder="e.g. You are an expert Python developer…" class="mt-0.5 w-full text-xs bg-slate-900 border border-slate-600 rounded px-2 py-1.5"></textarea></label>
+    <div class="flex gap-2 pt-1"><button id="btnFldSave" class="flex-1 py-1.5 rounded bg-blue-600 hover:bg-blue-500">Save</button>
+    <button id="btnFldCancel" class="px-4 rounded bg-slate-700 hover:bg-slate-600">Cancel</button></div>
+  </div>
+</div>
+<div id="toasts" class="fixed bottom-10 right-3 space-y-2 z-50 text-xs"></div>
+
+<script type="module">
+const LS_KEY='llamaswap-webui-v1';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uuid=()=> (crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(16).slice(2));
+function toast(msg,ok=true){const d=document.createElement('div');d.className='px-3 py-2 rounded shadow '+(ok?'bg-slate-800 border border-slate-600':'bg-red-900 border border-red-500');d.textContent=msg;$('toasts').appendChild(d);setTimeout(()=>d.remove(),4200);}
+function icons(){ if(window.lucide) lucide.createIcons(); }
+/* Font-independent disclosure triangles. Text glyphs like ▶▼▸◀ render through
+   whatever font claims them (sometimes emoji-style, sometimes missing) — inline
+   SVG in currentColor always matches the surrounding text. */
+const _tri=(d,s=12)=>`<svg viewBox="0 0 10 10" width="${s}" height="${s}" fill="currentColor" aria-hidden="true" style="vertical-align:-1px">${d}</svg>`;
+const chev=(open,s=12)=>_tri(open?'<path d="M2 3.5 5 6.5 8 3.5Z"/>':'<path d="M3.5 2 6.5 5 3.5 8Z"/>',s);
+const triL=()=>_tri('<path d="M6.5 2 3.5 5 6.5 8Z"/>');
+
+/* ── searchable model pickers: dropdown face + panel with search box on top ── */
+const COMBOS={};
+function hideOtherCombos(except){ for(const k of Object.keys(COMBOS)) if(k!==except) COMBOS[k].close(); }
+// Flip the dropdown upward when the face is near the viewport bottom.
+function shouldFlip(top,bottom,vh,need){ const below=vh-bottom, above=top; return below<need&&above>below; }
+// Single writer for programmatic value changes (opt(), cross-linked pickers):
+// keeps the hidden value input and the visible face in sync.
+function setComboValue(sel,v){ const el=$(sel); if(!el)return; el.value=v; if(COMBOS[sel])COMBOS[sel].syncFace(); }
+function initCombos(){
+  document.querySelectorAll('input[data-combo]').forEach(input=>{
+    if(COMBOS[input.id]||input.closest('.combo'))return; // idempotent: never double-wrap
+    input.style.display='none'; // value store only; visibility follows .hidden via CSS :has
+    const wrap=document.createElement('div'); wrap.className='combo';
+    input.replaceWith(wrap); wrap.appendChild(input);
+    const face=document.createElement('button'); face.type='button';
+    face.className=(input.className||'').replace(/\bhidden\b/g,'').trim()+' combo-face';
+    face.innerHTML='<span></span>'; face.title='Choose model';
+    const panel=document.createElement('div'); panel.className='combo-list hidden';
+    const search=document.createElement('input'); search.className='combo-search';
+    search.placeholder='search models…'; search.autocomplete='off'; search.spellcheck=false;
+    const items=document.createElement('div'); items.className='combo-items'; items.setAttribute('role','listbox');
+    panel.appendChild(search); panel.appendChild(items);
+    wrap.appendChild(face); wrap.appendChild(panel);
+    const label=face.querySelector('span');
+    const paintHi=combo=>{ items.querySelectorAll('.combo-item').forEach((r,i)=>r.classList.toggle('hi',i===combo.hi));
+      const s=items.querySelector('.combo-item.hi'); if(s&&s.scrollIntoView)s.scrollIntoView({block:'nearest'}); };
+    const combo=COMBOS[input.id]={ input, wrap, face, panel, search, items:[],
+      filtered:[], hi:-1,
+      setItems(arr){ this.items=[...arr]; this.syncFace(); if(this.isOpen())this.render(); },
+      syncFace(){ label.textContent=input.value||'(select model)'; face.title=input.value||'Choose model'; },
+      isOpen(){ return !panel.classList.contains('hidden'); },
+      render(){ const q=(search.value||'').toLowerCase();
+        this.filtered=this.items.filter(x=>!q||String(x).toLowerCase().includes(q));
+        this.hi=this.filtered.length?0:-1;
+        items.innerHTML=this.filtered.map((x,i)=>`<div data-v="${esc(x)}" role="option" class="combo-item${i===this.hi?' hi':''}">${esc(x)}</div>`).join('')
+          ||'<div class="combo-empty">no matches</div>'; },
+      open(){ hideOtherCombos(input.id); search.value=''; panel.classList.remove('hidden'); this.render();
+        try{ const r=face.getBoundingClientRect();
+          wrap.classList.toggle('combo-up',shouldFlip(r.top,r.bottom,window.innerHeight,Math.min(320,panel.scrollHeight||320))); }catch{}
+        search.focus(); },
+      close(){ panel.classList.add('hidden'); this.hi=-1; },
+      pick(v){ if(v==null||v==='')return; input.value=v; this.syncFace(); hideOtherCombos(input.id);
+        input.dispatchEvent(new Event('change',{bubbles:true})); this.close(); face.focus(); },
+    };
+    face.addEventListener('click',()=>{ combo.isOpen()?combo.close():combo.open(); });
+    face.addEventListener('keydown',e=>{
+      if(e.key==='ArrowDown'||e.key==='Enter'||e.key===' '){ e.preventDefault(); if(!combo.isOpen())combo.open(); }
+      else if(e.key==='Escape'){ combo.close(); } });
+    search.addEventListener('input',()=>combo.render());
+    search.addEventListener('blur',()=>setTimeout(()=>combo.close(),150));
+    search.addEventListener('keydown',e=>{
+      if(e.key==='ArrowDown'){ e.preventDefault();
+        if(combo.filtered.length){ combo.hi=(combo.hi+1)%combo.filtered.length; paintHi(combo); } }
+      else if(e.key==='ArrowUp'){ e.preventDefault();
+        if(combo.filtered.length){ combo.hi=(combo.hi-1+combo.filtered.length)%combo.filtered.length; paintHi(combo); } }
+      else if(e.key==='Enter'){ e.preventDefault();
+        if(combo.hi>=0&&combo.filtered[combo.hi])combo.pick(combo.filtered[combo.hi]);
+        else { const q=(search.value||'').toLowerCase();
+          const exact=combo.items.find(x=>String(x).toLowerCase()===q);
+          if(exact)combo.pick(exact);
+          else if(combo.filtered.length===1)combo.pick(combo.filtered[0]);
+          else combo.close(); } }
+      else if(e.key==='Escape'){ combo.close(); face.focus(); } });
+    items.addEventListener('mousedown',e=>{ const r=e.target.closest('[data-v]');
+      if(r){ e.preventDefault(); combo.pick(r.dataset.v); } });
+    combo.syncFace(); // placeholder until opt() feeds items
+  });
+  document.addEventListener('click',e=>{ for(const k of Object.keys(COMBOS)){ const c=COMBOS[k]; if(!c.wrap.contains(e.target))c.close(); } });
+}
+initCombos();
+
+/* ── markdown (assistant messages): marked → sanitize → highlight ── */
+function safeHtml(html){ const t=document.createElement('template'); t.innerHTML=html;
+  t.content.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base').forEach(n=>n.remove());
+  t.content.querySelectorAll('*').forEach(n=>{ [...n.attributes].forEach(a=>{ const k=a.name.toLowerCase(), v=a.value||'';
+      if(k.startsWith('on')||k==='srcdoc'||((k==='href'||k==='src')&&/^\s*(javascript|data:text\/html)/i.test(v)))n.removeAttribute(a.name); });
+    if(n.tagName==='A'){ n.target='_blank'; n.rel='noopener noreferrer'; } });
+  return t.innerHTML; }
+function md(src){ const s=String(src??'');
+  // Rendered markdown carries its own <p>/<br> structure; the plain-text
+  // fallback MUST pre-wrap or newlines visually collapse (the "no newlines" bug).
+  // tidyMd() is render-only: the raw toggle below always shows the true text.
+  try{ if(window.marked) return `<div class="md">${safeHtml(window.marked.parse(tidyMd(s),{breaks:true,gfm:true}))||'…'}</div>`; }catch{}
+  return `<div class="whitespace-pre-wrap">${esc(s)||'…'}</div>`; }
+// Tiny models often emit "##Header" (no space) — not a heading per spec, so it
+// renders literally. Insert the space for h2–h6 at line starts only: single-#
+// stays literal ("#hashtag", "#1"), mid-line ## is untouched, and valid "# x"
+// input never matches (already has the space).
+function tidyMd(s){ return String(s??'').replace(/^(#{2,6})(?=[^#\s])/gm,'$1 '); }
+function paintCode(scope){ // syntax highlight only — safe every paint (length-guarded)
+  scope.querySelectorAll('pre > code').forEach(code=>{
+    if(window.hljs && code.dataset.hllen!==String(code.textContent.length)){
+      try{ code.removeAttribute('data-highlighted'); hljs.highlightElement(code); code.dataset.hllen=String(code.textContent.length); }catch{} } }); }
+function paintButtons(scope){ // copy buttons, idempotent via .codewrap (added only on settled blocks)
+  scope.querySelectorAll('pre > code').forEach(code=>{
+    const pre=code.parentElement;
+    if(!pre.parentElement || !pre.parentElement.classList.contains('codewrap')){
+      const wrap=document.createElement('div'); wrap.className='codewrap';
+      pre.replaceWith(wrap); wrap.appendChild(pre);
+      const btn=document.createElement('button'); btn.type='button'; btn.className='copybtn'; btn.textContent='Copy';
+      btn.title='Copy code to clipboard';
+      btn.addEventListener('click',async e=>{ e.stopPropagation();
+        try{ await navigator.clipboard.writeText(code.innerText); btn.textContent='✓ copied'; }
+        catch{ const ta=document.createElement('textarea'); ta.value=code.innerText; document.body.appendChild(ta);
+          ta.select(); try{document.execCommand('copy');btn.textContent='✓ copied';}catch{btn.textContent='copy failed';} ta.remove(); }
+        setTimeout(()=>btn.textContent='Copy',1500); });
+      wrap.appendChild(btn);
+    } }); }
+function enhanceCode(scope){ paintCode(scope); paintButtons(scope); } // full pass: reply finished
+function fencesBalanced(s){ return (((String(s||'').match(/```/g)||[]).length%2)===0); }
+// Live pass while streaming: highlight always, but buttons only once fences are
+// balanced (open fence + rebuilt DOM each paint = the copy-button flicker).
+function liveEnhance(m,el){ paintCode(el);
+  if(fencesBalanced(m.content)&&fencesBalanced(m.thinking||''))paintButtons(el); }
+
+/* ── store (spec §5) ── */
+const DEFAULTS={settings:{apiBaseUrl:'http://192.168.1.22:8080',selectedApiMode:'openai',theme:'dark',defaultChatModel:'qwen2.5-bartowski-0.5b-q4_k_m'},
+  chats:[],folders:[],
+  templates:[{name:'Summarize',text:'Summarize the following in 5 bullets:\n\n'},{name:'Code review',text:'Review this code for bugs and improvements:\n\n'},{name:'Explain ELI5',text:'Explain like I am 5 years old:\n\n'}]};
+let S;
+try{ S=JSON.parse(localStorage.getItem(LS_KEY))||structuredClone(DEFAULTS); }catch{ S=structuredClone(DEFAULTS); }
+S.settings={...DEFAULTS.settings,...(S.settings||{})}; S.folders=S.folders?.length?S.folders:[...DEFAULTS.folders];
+S.templates=S.templates?.length?S.templates:[...DEFAULTS.templates];
+const save=()=>localStorage.setItem(LS_KEY,JSON.stringify(S));
+// Migrate older saves: folders string[] -> [{id,name,system,collapsed}],
+// chat.folder names -> ids, plus recency stamps.
+function migrateStore(){
+  const _n=Math.floor(Date.now()/1000);
+  if(Array.isArray(S.folders)&&S.folders.some(f=>typeof f==='string')){
+    const objs=S.folders.filter(f=>typeof f!=='string'), idByName={};
+    for(const n of S.folders.filter(f=>typeof f==='string')){
+      if(!idByName[n]){ const f={id:uuid(),name:String(n),system:'',collapsed:false}; objs.push(f); idByName[n]=f.id; } }
+    for(const c of (S.chats||[]))if(typeof c.folder==='string'&&c.folder)c.folder=idByName[c.folder]||'';
+    S.folders=objs;
+  }
+  if('activeFolder' in S)delete S.activeFolder; // retired: folders open chats directly now
+  if(!S.sections||typeof S.sections!=='object')S.sections={folders:true,chats:true};
+  for(const c of (S.chats||[])){ if(!c.updatedAt)c.updatedAt=c.createdAt||_n; if(c.folder==null)c.folder=''; }
+}
+migrateStore();
+function folderById(id){ return (S.folders||[]).find(f=>f.id===id)||null; }
+function folderName(id){ const f=folderById(id); return f?f.name:''; }
+const apiBase=()=> (S.settings.apiBaseUrl||'').replace(/\/+$/,'');
+const jfetch=async(path,opts={})=>{ const r=await fetch(apiBase()+path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}}); if(!r.ok){ const t=await r.text().catch(()=> ''); throw new Error(`HTTP ${r.status} ${path}: ${t.slice(0,300)}`);} return r; };
+/* CORS: llama-swap's NATIVE endpoints (/health,/running,/profiles,/metrics,/logs) send no
+   Access-Control-Allow-Origin header, so browsers block them cross-origin (incl. file://).
+   Proxied /v1/* endpoints do work. Detect the block (fetch rejects with TypeError) and point
+   at serve.py instead of spamming raw errors. */
+let corsWarned=false;
+const isBlocked=e=>e instanceof TypeError;
+function showCorsBanner(){
+  try{ if(location.protocol.indexOf('http')===0&&new URL(apiBase()).origin!==location.origin) $('btnSameOrigin').classList.remove('hidden'); }catch{}
+  if(corsWarned)return; corsWarned=true; $('corsBanner').classList.remove('hidden'); icons(); }
+function netErr(e){ if(isBlocked(e)){ showCorsBanner(); return 'BLOCKED by browser CORS policy (no ACAO header) — run serve.py for full access; chat/v1 endpoints work regardless'; } return e.message; }
+
+/* ── capability registry (spec §2; handles BOTH spec in/out schema and real llama-swap schema) ── */
+let MODELS=[], CAPS={chat:[],complete:[],vision:[],imageGen:[],imageEdit:[],tts:[],stt:[],embed:[],rerank:[],tools:[]};
+function capsOf(m){
+  const c={chat:false,complete:false,vision:false,imageGen:false,imageEdit:false,tts:false,stt:false,embed:false,rerank:false,tools:false};
+  const cap=m.capabilities||{}, arch=m.architecture||{}, meta=m?.meta?.llamaswap||{};
+  const mod=`${arch.modality||''} ${(arch.input_modalities||[]).join('+')}->${(arch.output_modalities||[]).join('+')}`.toLowerCase();
+  const extra=[...(meta.capabilities||[])].map(x=>String(x).toLowerCase());
+  // spec-style legacy: in:[text], out:[text|image|audio], reranker:true
+  const ins=(cap.in||m.in||[]).map(x=>String(x).toLowerCase()), outs=(cap.out||m.out||[]).map(x=>String(x).toLowerCase());
+  if(ins.includes('text')&&outs.includes('text')){c.chat=true;c.complete=true;}
+  if(outs.includes('image')&&ins.includes('image'))c.imageEdit=true;
+  else if(outs.includes('image'))c.imageGen=true;
+  if(outs.includes('audio'))c.tts=true;
+  if(ins.includes('audio'))c.stt=true;
+  if(cap.reranker===true)c.rerank=true;
+  // real llama-swap style
+  if(cap.image_generation)c.imageGen=true;
+  if(cap.audio_speech)c.tts=true;
+  if(cap.audio_transcriptions)c.stt=true;
+  if(cap.reranker)c.rerank=true;
+  if(cap.function_calling||cap.tools)c.tools=true;
+  if(cap.vision||extra.includes('vision')||mod.includes('image'))c.vision=true;
+  if(mod.includes('text->image'))c.imageGen=true;
+  if(mod.includes('audio->text')||mod.includes('audio')){ if((arch.input_modalities||[]).includes('audio'))c.stt=true; }
+  if(mod.includes('text->audio')||mod.includes('>audio'))c.tts=true;
+  if(/embed/i.test(m.id||'')||/embed/i.test(m.name||'')){c.embed=true;}
+  if(/rerank/i.test(m.id||'')){c.rerank=true;}
+  if(extra.includes('completion')||extra.includes('tools')||extra.includes('thinking')){c.chat=true;c.complete=true;c.tools=c.tools||extra.includes('tools');}
+  // default: text-in/text-out models chat (INCLUDES vision text+image->text models like qwen3.5/gemma3)
+  if(!c.chat&&!c.imageGen&&!c.imageEdit&&!c.tts&&!c.stt&&!c.rerank&&!c.embed){
+    const inM=(arch.input_modalities||[]).map(x=>String(x).toLowerCase()), outM=(arch.output_modalities||[]).map(x=>String(x).toLowerCase());
+    const textIn=inM.includes('text')||/^text/.test(mod)||mod.includes('+text');
+    const textOut=outM.includes('text')||/->text/.test(mod)||mod.endsWith('text');
+    if((textIn&&textOut)||!mod.trim()||mod==='->'){c.chat=true;c.complete=true;}
+  }
+  return c;
+}
+const firstId=list=>list[0]||'';
+async function refreshModels(){
+  try{
+    const r=await fetch(apiBase()+'/v1/models'); if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json(); MODELS=j.data||[];
+    CAPS={chat:[],complete:[],vision:[],imageGen:[],imageEdit:[],tts:[],stt:[],embed:[],rerank:[],tools:[]};
+    for(const m of MODELS){ m._caps=capsOf(m);
+      for(const k of Object.keys(CAPS)) if(m._caps[k]) CAPS[k].push(m.id); }
+    if(!CAPS.imageEdit.length&&CAPS.imageGen.length)CAPS.imageEdit=[...CAPS.imageGen]; // allow edit UI to reuse gen models
+    fillModelSelects(); renderCapsBadges();
+    $('sysStatus').textContent=`System Status: 🟢 Running (${MODELS.length} models known)`;
+    return true;
+  }catch(e){ $('sysStatus').textContent='System Status: 🔴 '+netErr(e); toast('models: '+netErr(e),false); return false; }
+}
+function opt(sel,list,preferred){ const el=$(sel); const cur=el.value||preferred;
+  // model pickers are dropdown+search combos (see initCombos): options live in
+  // COMBOS; setComboValue() keeps the hidden value input and face in sync.
+  const html=list.map(id=>`<option value="${esc(id)}">${esc(id)}</option>`).join('')||'<option value="">(none)</option>';
+  if(el.tagName==='INPUT'&&el.hasAttribute('data-combo')){ if(COMBOS[sel])COMBOS[sel].setItems(list); }
+  else el.innerHTML=html;
+  setComboValue(sel,list.includes(cur)?cur:((preferred&&list.includes(preferred))?preferred:(list[0]||''))); }
+function fillModelSelects(){
+  const all=MODELS.map(m=>m.id);
+  opt('selActiveModel',all,S.settings.defaultChatModel);
+  opt('chatModel',CAPS.chat.length?CAPS.chat:all,S.settings.defaultChatModel);
+  opt('compModel',CAPS.complete.length?CAPS.complete:all,S.settings.defaultChatModel);
+  opt('imgModel',CAPS.imageGen.length?CAPS.imageGen:all,'sdxs-tiny-gguf');
+  opt('ttsModel',CAPS.tts.length?CAPS.tts:all,'kokoro-tts');
+  opt('sttModel',CAPS.stt.length?CAPS.stt:all,'whisper-tiny-en');
+  opt('embModel',CAPS.embed.length?CAPS.embed:all,'nomic-embed');
+  opt('rerModel',CAPS.rerank.length?CAPS.rerank:all,'bge-reranker');
+  if(COMBOS.selLogModel)COMBOS.selLogModel.setItems(all);
+}
+function renderCapsBadges(){
+  const b=$('capsBadges'); const pill=(n,a)=>a.length?`<span class="px-1.5 py-0.5 rounded bg-slate-700">${n}:${a.length}</span>`:'';
+  b.innerHTML=pill('chat',CAPS.chat)+pill('img',CAPS.imageGen)+pill('tts',CAPS.tts)+pill('stt',CAPS.stt)+pill('rerank',CAPS.rerank);
+}
+
+/* ── sidebar / chats ── */
+let activeChatId=null, searchQ='';
+function ensureChat(){ if(activeChatId&&S.chats.find(c=>c.id===activeChatId))return activeChatId;
+  return newChat(false); }
+function newChat(focus=true,fid=''){ const _n=Math.floor(Date.now()/1000);
+  const f=fid?folderById(fid):null; // optional: start filed in a folder (inherits system prompt)
+  const c={id:uuid(),title:'New chat',folder:f?f.id:'',model:$('chatModel').value||S.settings.defaultChatModel,createdAt:_n,updatedAt:_n,messages:[]};
+  if(f&&f.system)c.messages.push({role:'system',content:f.system,hidden:true,ts:_n});
+  S.chats.unshift(c); save(); activeChatId=c.id; renderChats(); renderMessages(); if(focus){switchTab('chat');$('chatInput').focus();} return c.id; }
+/* ── sidebar: folder strip + time-grouped chats, ⋯ menus, rename/move/delete/dnd ── */
+let openMenuId=null, openFolderMenu=null, folderDelAsk=null, editingFolderId=null, moveSubFor=null; // transient UI state (not saved)
+function relTime(ts){ if(!ts)return''; const s=Math.max(0,Date.now()/1000-ts);
+  if(s<60)return'just now'; const m=Math.floor(s/60); if(m<60)return m+'m ago';
+  const h=Math.floor(m/60), d=new Date(ts*1000), now=new Date();
+  if(d.toDateString()===now.toDateString())return h+'h ago';
+  if(d.toDateString()===new Date(Date.now()-864e5).toDateString())return'Yesterday';
+  if(s<7*86400)return d.toLocaleDateString(undefined,{weekday:'long'});
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+function timeGroup(ts){ const d=new Date((ts||0)*1000), now=new Date();
+  if(d.toDateString()===now.toDateString())return'Today';
+  if(d.toDateString()===new Date(Date.now()-864e5).toDateString())return'Yesterday';
+  if(Date.now()/1000-(ts||0)<7*86400)return'Previous 7 days'; return'Older'; }
+function chatRow(c){
+  const branched=c.messages.some(m=>m.alts&&m.alts.length>1)?' · 🌿':'';
+  const moveOpen=moveSubFor===c.id;
+  const menu=openMenuId===c.id?`<div class="chatmenu ctxmenu">
+      <button data-act="rename">✏️ Rename</button>
+      <button data-movesub="${c.id}">📁 Move <span class="opacity-60 inline-flex">${chev(moveOpen)}</span></button>
+      ${moveOpen?`<div class="ctxsub">${['',...S.folders.map(f=>f.id)].map(fid=>`<button data-movef="${fid}" class="${(c.folder||'')===fid?'ctxcur':''}">${fid?'📁 '+esc(folderName(fid)):'📥 Ungrouped'}${(c.folder||'')===fid?' ✓':''}</button>`).join('')}</div>`:''}
+      <div class="ctxsep"></div>
+      <button data-act="del" class="ctxdanger">🗑 Delete…</button></div>`:'';
+  return `<div data-id="${c.id}" draggable="true" title="drag onto a folder to file it" class="chatitem group relative ${c.id===activeChatId?'active':''} border border-transparent rounded px-2 py-1.5 cursor-pointer hover:bg-slate-800">
+    <div class="flex items-center gap-1"><span class="chattitle text-xs font-medium truncate flex-1">${esc(c.title)}</span>
+    <button data-act="menu" title="chat options" class="opacity-40 hover:opacity-100 shrink-0 px-1">⋯</button></div>
+    ${menu}
+    <div class="text-[10px] opacity-60 truncate">${relTime(c.updatedAt||c.createdAt||0)}${c.folder&&folderName(c.folder)?' · 📁 '+esc(folderName(c.folder)):''} · ${esc(c.model||'')} · ${c.messages.length} msgs${branched}</div></div>`;
+}
+function renderChats(){
+  const q=searchQ.toLowerCase();
+  const match=c=>!q||c.title.toLowerCase().includes(q)||c.messages.some(m=>(m.content||'').toLowerCase().includes(q)||(m.thinking||'').toLowerCase().includes(q));
+  const byUpd=(a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0);
+  let h='';
+  if(q){ // searching: flat results across everything, folder shown per row
+    const list=S.chats.filter(match).sort(byUpd);
+    h+=`<div class="px-2 pt-2 pb-0.5 text-[10px] uppercase tracking-wide opacity-50">Results (${list.length})</div>`;
+    h+=list.map(chatRow).join('')||'<div class="text-xs opacity-60 p-2">No matches.</div>';
+  }else{
+    const secF=!S.sections||S.sections.folders!==false, secC=!S.sections||S.sections.chats!==false;
+    h+=`<div class="flex items-center gap-1 px-2 pt-2 pb-0.5 cursor-pointer" data-sect="folders" title="collapse section"><span class="w-4 shrink-0 inline-flex items-center justify-center opacity-70">${chev(secF,16)}</span><span class="text-xs font-semibold uppercase tracking-wide opacity-70 flex-1">Folders (${S.folders.length})</span><button data-newfolder="1" title="new folder" class="px-1.5 text-base leading-none font-bold opacity-50 hover:opacity-100">+</button></div>`;
+    if(secF)for(const f of S.folders){
+      const kids=S.chats.filter(c=>c.folder===f.id).sort(byUpd);
+      h+=`<div data-fid="${f.id}" title="drop chats here to file them" class="mt-1 rounded border border-transparent">`
+        +`<div class="flex items-center gap-0.5 px-1.5 py-1.5 rounded hover:bg-slate-800 relative cursor-pointer" data-fchev="${f.id}" title="expand/collapse">`
+        +`<span class="w-4 shrink-0 inline-flex items-center justify-center opacity-70">${chev(!f.collapsed,16)}</span>`
+        +`<span class="flex-1 flex items-center gap-1.5 min-w-0 px-1"><span class="shrink-0">📁</span><span class="text-xs font-semibold truncate">${esc(f.name)}</span><span class="text-[10px] opacity-60 shrink-0">${kids.length}</span></span>`
+        +`<button data-fnew="${f.id}" title="new chat in this folder" class="px-1 text-sm leading-none font-bold opacity-40 hover:opacity-100 shrink-0">+</button>`
+        +`<button data-ffmenu="${f.id}" title="folder options" class="opacity-40 hover:opacity-100 px-1 text-xs shrink-0">⋯</button>`
+        +(openFolderMenu===f.id?folderMenuHtml(f):'')+`</div>`
+        +(!f.collapsed?`<div class="ml-3 border-l border-slate-700/60 pl-1 pb-1">${kids.map(chatRow).join('')||'<div class="text-[10px] opacity-40 px-2 py-1">empty — drag chats here</div>'}</div>`:'')
+        +`</div>`;
+    }
+    const loose=S.chats.filter(c=>!c.folder).sort(byUpd);
+    h+=`<div class="flex items-center gap-1 px-2 pt-2 pb-0.5 cursor-pointer" data-sect="chats" title="collapse section"><span class="w-4 shrink-0 inline-flex items-center justify-center opacity-70">${chev(secC,16)}</span><span class="text-xs font-semibold uppercase tracking-wide opacity-70 flex-1">Chats</span></div>`;
+    if(secC)for(const g of ['Today','Yesterday','Previous 7 days','Older']){
+      const rows=loose.filter(c=>timeGroup(c.updatedAt||c.createdAt||0)===g);
+      if(!rows.length)continue;
+      h+=`<div class="px-2 pt-1 pb-0.5 text-[10px] uppercase tracking-wide opacity-40">${g}</div>`;
+      h+=rows.map(chatRow).join('');
+    }
+    if(secC&&!loose.length&&!S.folders.length)h+='<div class="text-xs opacity-60 p-2">No chats yet.</div>';
+  }
+  $('chatList').innerHTML=h;
+  icons();
+  const t=$('selTemplate'); t.innerHTML=S.templates.map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('');
+}
+function folderMenuHtml(f){
+  if(folderDelAsk===f.id){ const n=S.chats.filter(c=>c.folder===f.id).length;
+    return `<div class="foldermenu ctxmenu"><div class="ctxhead">Delete “${esc(f.name)}”?</div>`
+      +`<button data-fedit="${f.id}">✏️ Edit name &amp; system prompt</button>`
+      +`<div class="ctxsep"></div>`
+      +`<button data-fdel-ungroup="${f.id}">📥 Ungroup ${n} chat${n===1?'':'s'} (keep)</button>`
+      +`<button data-fdel-chats="${f.id}" class="ctxdanger">🗑 Delete folder + ${n} chat${n===1?'':'s'}</button></div>`; }
+  return `<div class="foldermenu ctxmenu"><button data-fedit="${f.id}">✏️ Edit name &amp; system prompt</button>`
+    +`<button data-fdel="${f.id}" class="ctxdanger">🗑 Delete…</button></div>`;
+}
+function deleteFolder(fid,withChats){
+  const f=folderById(fid); if(!f)return;
+  const inside=S.chats.filter(c=>c.folder===fid);
+  if(withChats){ const ids=new Set(inside.map(c=>c.id));
+    S.chats=S.chats.filter(c=>!ids.has(c.id));
+    if(activeChatId&&ids.has(activeChatId)){ activeChatId=S.chats[0]?.id||null; renderMessages(); } }
+  else for(const c of inside)c.folder='';
+  S.folders=S.folders.filter(x=>x.id!==fid);
+  openFolderMenu=null; folderDelAsk=null; save(); renderChats();
+}
+/* folder settings modal (name + system prompt workspace config; fid null = create) */
+function openFolderModal(fid){ const f=fid?folderById(fid):null;
+  editingFolderId=fid||null; $('fldName').value=f?f.name:''; $('fldSystem').value=(f&&f.system)||'';
+  openFolderMenu=null; folderDelAsk=null; renderChats(); $('folderModal').classList.remove('hidden');
+  setTimeout(()=>$('fldName').focus(),50); }
+function saveFolderModal(){
+  const nn=$('fldName').value.trim().slice(0,60), sys=$('fldSystem').value;
+  if(!nn){ toast('folder needs a name',false); return false; }
+  if(editingFolderId){ const f=folderById(editingFolderId); if(!f){ editingFolderId=null; $('folderModal').classList.add('hidden'); return false; }
+    if(S.folders.some(x=>x.id!==f.id&&x.name===nn)){ toast('a folder with that name exists',false); return false; }
+    f.name=nn; f.system=sys;
+    toast('folder saved'+(f.system?' (system prompt applies to new chats here)':'')); }
+  else{ if(S.folders.some(x=>x.name===nn)){ toast('a folder with that name exists',false); return false; }
+    S.folders.push({id:uuid(),name:nn,system:sys,collapsed:false});
+    toast('folder created'+(sys?' (system prompt applies to new chats here)':'')); }
+  editingFolderId=null; $('folderModal').classList.add('hidden'); save(); renderChats(); return true; }
+$('btnFldCancel').addEventListener('click',()=>{ editingFolderId=null; $('folderModal').classList.add('hidden'); });
+$('btnFldSave').addEventListener('click',()=>saveFolderModal());
+function commitRename(inp){ inp.dataset.done='1'; const row=inp.closest('.chatitem');
+  const c=S.chats.find(x=>x.id===row?.dataset.id);
+  if(c&&inp.value.trim()){ c.title=inp.value.trim().slice(0,80); c.titleAuto=false; touch(c); save(); } openMenuId=null; moveSubFor=null; renderChats(); }
+// one-time delegation (rows re-render constantly)
+$('chatList').addEventListener('click',e=>{
+  const row=e.target.closest('.chatitem');
+  if(e.target.closest('[data-act="menu"]')&&row){ openMenuId=openMenuId===row.dataset.id?null:row.dataset.id; moveSubFor=null; renderChats(); return; }
+  const ms=e.target.closest('[data-movesub]');
+  if(ms&&row){ moveSubFor=moveSubFor===row.dataset.id?null:row.dataset.id; renderChats(); return; }
+  const act=e.target.closest('[data-act]');
+  if(act&&row){
+    if(act.dataset.act==='del'){ const c=S.chats.find(x=>x.id===row.dataset.id);
+      if(c&&!confirm('Delete chat "'+c.title+'"? This cannot be undone.'))return;
+      S.chats=S.chats.filter(x=>x.id!==row.dataset.id);
+      if(activeChatId===row.dataset.id)activeChatId=S.chats[0]?.id||null;
+      openMenuId=null; moveSubFor=null; save(); renderChats(); renderMessages(); }
+    else if(act.dataset.act==='rename'){ openMenuId=null; moveSubFor=null; renderChats();
+      const c=S.chats.find(x=>x.id===row.dataset.id);
+      const fresh=document.querySelector(`.chatitem[data-id="${row.dataset.id}"] .chattitle`);
+      if(c&&fresh)startRename(fresh,c); }
+    return; }
+  const mv=e.target.closest('[data-movef]');
+  if(mv&&row){ const c=S.chats.find(x=>x.id===row.dataset.id); if(!c)return;
+    c.folder=mv.dataset.movef; touch(c); openMenuId=null; moveSubFor=null; save(); renderChats(); return; }
+  if(e.target.closest('select,input,textarea,button'))return;
+  if(row){ openMenuId=null; moveSubFor=null; activeChatId=row.dataset.id; save(); renderChats(); renderMessages(); }
+});
+function startRename(t,c){ t.innerHTML=`<input class="renameinput w-full text-xs bg-slate-900 border border-blue-500 rounded px-1 py-0.5" value="${esc(c.title)}">`;
+  const inp=t.querySelector('input'); inp.focus(); inp.select(); }
+$('chatList').addEventListener('keydown',e=>{
+  if(e.target.matches('.renameinput')){ if(e.key==='Enter')commitRename(e.target); else if(e.key==='Escape')renderChats(); } });
+$('chatList').addEventListener('focusout',e=>{
+  if(e.target.matches('.renameinput')&&!e.target.dataset.done)commitRename(e.target); });
+$('chatList').addEventListener('dragstart',e=>{ const row=e.target.closest('.chatitem'); if(!row)return;
+  e.dataTransfer.setData('text/chat-id',row.dataset.id); e.dataTransfer.effectAllowed='move'; });
+$('chatList').addEventListener('click',e=>{
+  const nf=e.target.closest('[data-newfolder]');
+  if(nf){ openFolderMenu=null; folderDelAsk=null; openFolderModal(null); return; }
+  const sc=e.target.closest('[data-sect]');
+  if(sc){ S.sections=S.sections||{folders:true,chats:true}; const k=sc.dataset.sect;
+    if(k==='folders'||k==='chats'){ S.sections[k]=!S.sections[k]; save(); renderChats(); } return; }
+  const fm=e.target.closest('[data-ffmenu]');
+  if(fm){ const f=fm.dataset.ffmenu; openFolderMenu=openFolderMenu===f?null:f; folderDelAsk=null; renderChats(); return; }
+  const fe=e.target.closest('[data-fedit]');
+  if(fe){ openFolderModal(fe.dataset.fedit); return; }
+  const dl=e.target.closest('[data-fdel]');
+  if(dl){ folderDelAsk=dl.dataset.fdel; renderChats(); return; }
+  const du=e.target.closest('[data-fdel-ungroup]');
+  if(du){ deleteFolder(du.dataset.fdelUngroup,false); return; }
+  const dc=e.target.closest('[data-fdel-chats]');
+  if(dc){ if(confirm('Delete this folder AND all chats inside it? This cannot be undone.'))deleteFolder(dc.dataset.fdelChats,true); return; }
+  const fn=e.target.closest('[data-fnew]');
+  if(fn){ openFolderMenu=null; folderDelAsk=null; newChat(true,fn.dataset.fnew); return; }
+  const ch=e.target.closest('[data-fchev]');
+  if(ch){ if(e.target.closest('.foldermenu'))return; const f=folderById(ch.dataset.fchev); if(f){ f.collapsed=!f.collapsed; save(); renderChats(); } return; }
+  return;
+});
+$('chatList').addEventListener('dragover',e=>{ const z=e.target.closest('[data-fid]');
+  if(z){ e.preventDefault(); z.classList.add('drop-active'); } });
+$('chatList').addEventListener('dragleave',e=>{ const z=e.target.closest('[data-fid]');
+  if(z)z.classList.remove('drop-active'); });
+$('chatList').addEventListener('drop',e=>{ const z=e.target.closest('[data-fid]'); if(!z)return;
+  e.preventDefault(); z.classList.remove('drop-active');
+  const c=S.chats.find(x=>x.id===e.dataTransfer.getData('text/chat-id')); if(!c)return;
+  c.folder=z.dataset.fid; touch(c); save(); renderChats(); });
+// close any open sidebar menu on outside click / Escape
+document.addEventListener('click',e=>{
+  if(openMenuId||openFolderMenu){
+    if(!e.target.closest('.chatmenu,.foldermenu,[data-act="menu"],[data-ffmenu],[data-movesub]')){
+      openMenuId=null; moveSubFor=null; openFolderMenu=null; folderDelAsk=null; renderChats(); } } });
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&(openMenuId||openFolderMenu)){
+    openMenuId=null; moveSubFor=null; openFolderMenu=null; folderDelAsk=null; renderChats(); } });
+function thinkOf(m){
+  let th=(m.thinking||'').trim(), body=m.content||'';
+  const mt=/<think>([\s\S]*?)(?:<\/think>|$)/i.exec(body); // llama.cpp inline thinking tags
+  if(mt){ th=((th?th+'\n':'')+mt[1]).trim(); body=body.replace(mt[0],'').trim(); }
+  return {th, body};
+}
+function bodyHtml(m){
+  const {th, body}=thinkOf(m);
+  let h='';
+  if(th)h+=`<details class="mb-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1" open><summary class="text-[11px] cursor-pointer opacity-80">💭 thinking (${Math.ceil(th.length/4)} tok est.)</summary><div class="md opacity-80 text-[13px]">${md(th)}</div></details>`;
+  h+=m.role==='assistant'?md(body):`<div class="whitespace-pre-wrap">${esc(body)||'…'}</div>`;
+  return h;
+}
+// Overlap-aware accumulator. Some backends (llama-swap/llama.cpp) re-send the FULL text
+// generated so far in every delta instead of just the new tokens, or echo trailing
+// windows ("-references.", "The user is asking for"); naive += then renders
+// "HelloHello!Hello! How…".
+// The ONE exception: whitespace-only deltas ("\n", " ", indentation) MUST always be
+// appended, never dropped — newlines stream as lone chunks that already occur in acc,
+// so subset-dropping strips every line break from the output (a duplicated blank line
+// is harmless; a lost newline destroys structure).
+// Echo test is anchored (head/tail), not a bare includes(): a closing "```" is a
+// substring of acc via its opening fence, but it is fresh content — only head/tail
+// repeats are plausibly stale echoes.
+function appendChunk(cur,chunk){
+  if(!chunk)return cur||''; if(!cur)return chunk;
+  if(chunk.startsWith(cur))return chunk; // full retransmit: adopt as-is
+  if(/^\s*$/.test(chunk))return cur+chunk; // structural whitespace: never an echo
+  if(cur.startsWith(chunk)||cur.endsWith(chunk))return cur; // stale head/tail echo
+  const max=Math.min(cur.length,chunk.length,2000);
+  for(let n=max;n>0;n--){ if(cur.endsWith(chunk.slice(0,n)))return cur+chunk.slice(n); }
+  return cur+chunk;
+}
+function renderMessages(){ const c=S.chats.find(x=>x.id===activeChatId); const box=$('chatMsgs');
+  if(!c){box.innerHTML='<div class="text-sm opacity-60">No chat selected.</div>';return;}
+  const ws=$('workspace'), stick=nearBottom(ws);
+  box.innerHTML=c.messages.map((m,i)=>{ if(m.hidden)return ''; const v=curView(m);
+    const nav=(m.role==='assistant'&&m.alts&&m.alts.length>1)?`<button class="msgnav" data-d="-1" title="previous variant">${triL()}</button><span>${(m.altIdx||0)+1}/${m.alts.length}</span><button class="msgnav" data-d="1" title="next variant">${chev(false)}</button>`:'';
+    const btns=m.role==='user'
+      ?`<button class="msgcopy" title="copy message">Copy</button><button class="msgedit" title="edit & resend from here">Edit</button>`
+      :m.role==='assistant'
+      ?`<button class="msgcopy" title="copy reply">Copy</button><button class="msgjson" title="copy full response JSON">JSON</button>${nav}<button class="rawbtn" title="toggle raw response text (renderer vs model check)">raw</button>`
+      :`<button class="msgcopy" title="copy">Copy</button>`;
+    return `<div data-mi="${i}" class="rounded p-2 text-sm ${m.role==='user'?'msg-user':m.role==='tool'?'msg-tool':'msg-assistant'}">
+    <div class="text-[10px] mb-0.5 flex items-center gap-2 flex-wrap"><span class="opacity-60 flex-1">${esc(m.role)}${m.tool_name?' · '+esc(m.tool_name):''}${v.stats?' · '+esc(v.stats):''}</span><span class="msgbtns flex items-center gap-2 opacity-70">${btns}</span></div>
+    <div class="msgbody">${bodyHtml(v)}</div></div>`; }).join('')||'<div class="text-sm opacity-60">Start the conversation below.</div>';
+  enhanceCode(box); if(stick)stickScroll(ws); }
+// Message actions (delegation — rows re-render constantly): variant nav, copy,
+// response JSON, raw toggle, user-message edit, edit save/cancel.
+$('chatMsgs').addEventListener('click',async e=>{
+  const row=e.target.closest('[data-mi]'); if(!row)return;
+  const c=S.chats.find(x=>x.id===activeChatId); const m=c?.messages[+row.dataset.mi]; if(!m)return;
+  const v=curView(m), body=row.querySelector('.msgbody');
+  const q=sel=>e.target.closest(sel);
+  if(q('.msgnav')){ if(!m.alts||!m.alts.length)return; const n=m.alts.length;
+    m.altIdx=((m.altIdx||0)+(+q('.msgnav').dataset.d)+n)%n; save(); renderMessages(); return; }
+  if(q('.msgcopy')){ if(await copyText(v.content||''))toast('message copied'); else toast('copy failed',false); return; }
+  if(q('.msgjson')){ if(await copyText(JSON.stringify(m,null,2)))toast('response JSON copied'); else toast('copy failed',false); return; }
+  if(q('.rawbtn')){ const b=q('.rawbtn'); if(!body)return;
+    if(b.dataset.raw==='1'){ body.innerHTML=bodyHtml(v); enhanceCode(row); b.dataset.raw=''; b.textContent='raw'; }
+    else { body.innerHTML=`<div class="whitespace-pre-wrap">${esc(v.content)||'…'}</div>`; b.dataset.raw='1'; b.textContent='md'; } return; }
+  if(q('.msgedit')){ if(m.role!=='user'||!body)return;
+    if(streaming)return toast('stop the current reply first',false);
+    body.innerHTML=`<textarea class="msgeditta w-full text-sm bg-slate-900 border border-blue-500 rounded p-2" rows="4">${esc(m.content)}</textarea><div class="flex gap-2 mt-1 text-xs"><button class="msgsave px-3 py-1 rounded bg-blue-600 hover:bg-blue-500">Save &amp; resend</button><button class="msgcancel px-3 py-1 rounded bg-slate-700 hover:bg-slate-600">Cancel</button></div>`;
+    body.querySelector('textarea').focus(); return; }
+  if(q('.msgsave')){ const ta=body?.querySelector('.msgeditta'); const nv=(ta?.value||'').trim(); if(!nv||!body)return;
+    if(streaming)return toast('stop the current reply first',false);
+    m.content=nv; if(c.title==='New chat'){c.title=nv.slice(0,42);c.titleAuto=true;} touch(c); save(); resendFrom(+row.dataset.mi); return; }
+  if(q('.msgcancel')){ renderMessages(); return; }
+});
+function pushMsg(role,content,extra={}){ const c=S.chats.find(x=>x.id===activeChatId)||S.chats.find(x=>x.id===ensureChat());
+  c.messages.push({role,content,ts:Math.floor(Date.now()/1000),...extra});
+  if(c.title==='New chat'&&role==='user'){c.title=content.slice(0,42)||'New chat';c.titleAuto=true;}
+  c.model=$('chatModel').value||c.model; touch(c); save(); renderMessages(); renderChats();
+  if(role==='user')stickScroll($('workspace')); }
+// Branching: assistant messages may carry alternate replies (alts, from
+// regenerate / edit-resend); curView resolves the visible variant everywhere.
+function curView(m){ if(m&&m.role==='assistant'&&Array.isArray(m.alts)&&m.alts.length){
+  const a=m.alts[Math.min(m.altIdx||0,m.alts.length-1)]||{};
+  return {...m,content:a.content??m.content,thinking:a.thinking??m.thinking,stats:a.stats??m.stats}; } return m; }
+function touch(c){ if(c)c.updatedAt=Math.floor(Date.now()/1000); }
+async function copyText(t){ const s=String(t??'');
+  try{ await navigator.clipboard.writeText(s); return true; }
+  catch{ try{ const ta=document.createElement('textarea'); ta.value=s; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); return true; }catch{ return false; } } }
+
+/* ── tabs ── */
+function switchTab(name){ document.querySelectorAll('#tabbar .tabbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.add('hidden'));
+  const el=$('tab-'+name); el.classList.remove('hidden'); el.classList.add('flex'); icons(); }
+document.querySelectorAll('#tabbar .tabbtn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+
+/* ── MCP mock tools ── */
+async function mockWebSearch(query){
+  try{ const r=await fetch('https://api.duckduckgo.com/?q='+encodeURIComponent(query)+'&format=json&no_html=1&skip_disambig=1'); const j=await r.json();
+    return JSON.stringify({Abstract:j.AbstractText||'',Answer:j.Answer||'',topics:(j.RelatedTopics||[]).slice(0,3).map(t=>t.Text).filter(Boolean)}).slice(0,2000); }
+  catch(e){ return JSON.stringify({mock:true,query,note:'live search unavailable, synthetic result',hint:'The capital of France is Paris.'}); }
+}
+async function mockWebFetch(url){
+  try{ const r=await fetch(url); const t=await r.text(); return t.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,3000); }
+  catch(e){ return 'MOCK FETCH FAILED for '+url+': '+e.message; }
+}
+async function execMockTool(name,input){
+  try{ const a=typeof input==='string'?JSON.parse(input):input||{}; }catch{}
+  let args=input; if(typeof args==='string'){try{args=JSON.parse(args);}catch{args={};}}
+  if(name==='web_search')return await mockWebSearch(args.query||args.q||JSON.stringify(args));
+  if(name==='web_fetch')return await mockWebFetch(args.url||args.uri||'');
+  return `MOCK: no local executor for tool "${name}" with args ${JSON.stringify(args).slice(0,500)}`;
+}
+function parseToolDefs(){ try{ const a=JSON.parse($('chatToolDefs').value); return Array.isArray(a)?a:[]; }catch{ return []; } }
+const toAnthropicTools=defs=>defs.map(d=>({name:d.name,description:d.description||'',input_schema:d.input_schema||{type:'object',properties:{}}}));
+const toOpenAITools=defs=>defs.map(d=>({type:'function',function:{name:d.name,description:d.description||'',parameters:d.input_schema||{type:'object',properties:{}}}}));
+
+/* ── CHAT send (OpenAI + Anthropic, SSE, stats) ── */
+let aborter=null, streaming=false, pendingAttach=[];
+function paintSend(){ const b=$('btnSend'); if(!b)return; // send morphs into stop while streaming
+  if(streaming){ b.title='Stop generating'; b.className='p-2.5 rounded bg-red-700 hover:bg-red-600 shrink-0'; b.innerHTML='<i data-lucide="square" class="w-5 h-5"></i>'; }
+  else { b.title='Send'; b.className='p-2.5 rounded bg-blue-600 hover:bg-blue-500 shrink-0'; b.innerHTML='<i data-lucide="send" class="w-5 h-5"></i>'; }
+  icons(); }
+$('btnSend').addEventListener('click',()=>{ if(streaming)aborter?.abort(); else sendChat(); });
+$('chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!streaming)sendChat();} });
+/* image attachments (vision): data URLs ride on the user message as .attach */
+$('btnAttach').addEventListener('click',()=>$('filePick').click());
+$('filePick').addEventListener('change',e=>{ for(const f of e.target.files)addAttach(f); e.target.value=''; });
+function addAttach(f){ if(!f||!String(f.type||'').startsWith('image/'))return toast('images only',false);
+  if(pendingAttach.length>=4)return toast('max 4 images per message',false);
+  const r=new FileReader(); r.onload=()=>{ pendingAttach.push(String(r.result)); renderAttachPrev(); visionHint(); };
+  r.readAsDataURL(f); }
+function renderAttachPrev(){ $('attachPrev').innerHTML=pendingAttach.map((u,i)=>`<span class="relative inline-block"><img src="${u}" class="h-14 w-14 object-cover rounded border border-slate-600"><button data-rm="${i}" title="remove" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-700 text-[10px] leading-none">✕</button></span>`).join(''); }
+$('attachPrev').addEventListener('click',e=>{ const b=e.target.closest('[data-rm]'); if(!b)return;
+  pendingAttach.splice(+b.dataset.rm,1); renderAttachPrev(); });
+function visionHint(){ const m=$('chatModel').value;
+  if(MODELS.length&&(CAPS.chat||[]).length&&!(CAPS.vision||[]).includes(m))toast('this model may not take images (no vision capability listed)',false); }
+$('btnNewChat').addEventListener('click',()=>newChat());
+$('btnClearChat').addEventListener('click',()=>{ const c=S.chats.find(x=>x.id===activeChatId); if(c){c.messages=[];save();renderMessages();renderChats();} });
+$('btnRegen').addEventListener('click',()=>{ const c=S.chats.find(x=>x.id===activeChatId); if(!c)return;
+  let u=-1; c.messages.forEach((m,i)=>{ if(m.role==='user')u=i; });
+  if(u<0)return toast('nothing to regenerate',false); resendFrom(u); });
+$('btnExpMd').addEventListener('click',()=>{ const c=S.chats.find(x=>x.id===activeChatId);
+  if(!c||!c.messages.length)return toast('nothing to export',false); download(slug(c.title)+'.md',chatToMarkdown(c),'text/markdown'); });
+$('btnExpHtml').addEventListener('click',()=>{ const c=S.chats.find(x=>x.id===activeChatId);
+  if(!c||!c.messages.length)return toast('nothing to export',false); download(slug(c.title)+'.html',chatToHTML(c),'text/html'); });
+$('inpSearch').addEventListener('input',e=>{searchQ=e.target.value;renderChats();});
+$('btnUseTemplate').addEventListener('click',()=>{ const t=S.templates[+$('selTemplate').value]; if(t){$('chatInput').value+=t.text; $('chatInput').focus();} });
+$('btnCountTok').addEventListener('click',async()=>{
+  const c=S.chats.find(x=>x.id===activeChatId); if(!c)return toast('no chat',false);
+  const body={model:$('chatModel').value,messages:c.messages.filter(m=>m.role!=='tool').map(m=>{const v=curView(m);return{role:v.role,content:v.content};}).concat([{role:'user',content:$('chatInput').value||'hi'}])};
+  try{ const r=await jfetch('/v1/messages/count_tokens',{method:'POST',body:JSON.stringify(body)}); toast('tokens: '+JSON.stringify(await r.json()).slice(0,200)); }
+  catch(e){ const est=Math.ceil((body.messages.map(m=>m.content).join(' ').length)/4); toast(`count_tokens endpoint unavailable — estimate ≈ ${est} tokens`); }
+});
+async function sendChat(opts={}){
+  let uIdx;
+  if(opts.fromIdx!=null){ // regenerate / edit-resend: user message already in place
+    const cc0=S.chats.find(x=>x.id===activeChatId);
+    if(!cc0||cc0.messages[opts.fromIdx]?.role!=='user')return;
+    uIdx=opts.fromIdx;
+  }else{
+    const text=$('chatInput').value.trim();
+    if(!text&&!pendingAttach.length)return;
+    ensureChat(); pushMsg('user',text,pendingAttach.length?{attach:[...pendingAttach]}:{});
+    pendingAttach=[]; renderAttachPrev(); $('chatInput').value='';
+    uIdx=S.chats.find(x=>x.id===activeChatId).messages.length-1;
+  }
+  const mode=S.settings.selectedApiMode||'openai';
+  aborter=new AbortController(); streaming=true; paintSend();
+  const model=$('chatModel').value, stream=$('chatStream').checked, useTools=$('chatTools').checked;
+  const defs=useTools?parseToolDefs():[];
+  const t0=performance.now(); let full='', pt=0, ct=0, rounds=0;
+  const baseMsgs=()=>S.chats.find(c=>c.id===activeChatId).messages.filter(m=>m.role==='user'||m.role==='assistant'||m.role==='system').map(m=>{const v=curView(m);
+    if(v.attach?.length)return{role:v.role,content:[{type:'text',text:v.content||''},...v.attach.map(u=>({type:'image_url',image_url:{url:u}}))]};
+    return{role:v.role,content:v.content};});
+/* per-API image shapes (baseMsgs speaks OpenAI content parts) */
+/* reasoning effort -> request params. Default omits everything (model default);
+   Off/Max toggle thinking unbounded; Low/Medium/High add a token budget. */
+function thinkingParams(){ const v=$('chatThink').value;
+  if(v==='off')return{chat_template_kwargs:{enable_thinking:false}};
+  if(v==='max')return{chat_template_kwargs:{enable_thinking:true}};
+  const budget={low:512,medium:2048,high:8192}[v];
+  if(budget)return{chat_template_kwargs:{enable_thinking:true},thinking_budget_tokens:budget};
+  return {}; }
+function parseDataUrl(u){ const m=/^data:(.*?);base64,(.*)$/s.exec(String(u||'')); return{type:'base64',media_type:(m&&m[1])||'image/png',data:(m&&m[2])||''}; }
+function anthropicContent(c){ if(typeof c==='string')return c;
+  return c.map(p=>p.type==='image_url'?{type:'image',source:parseDataUrl(p.image_url&&p.image_url.url)}:{type:'text',text:p.text||''}); }
+function respContent(c){ if(typeof c==='string')return c;
+  return c.map(p=>p.type==='image_url'?{type:'input_image',image_url:p.image_url.url}:{type:'input_text',text:p.text||''}); }
+  try{
+    if(mode==='anthropic') await anthropicLoop(); else if(mode==='responses') await responsesLoop(); else await openaiLoop();
+  }catch(e){ if(e.name==='AbortError')pushMsg('assistant','[stopped by user]'+(full?'\n\nPartial:\n'+full:'')); else pushMsg('assistant','[request error] '+e.message); }
+  finally{ streaming=false; paintSend(); }
+  const doneC=S.chats.find(x=>x.id===activeChatId);
+  if(doneC){ touch(doneC); save(); if(doneC.messages.some(m=>m.role==='assistant'))genTitle(doneC); }
+  async function openaiLoop(){
+    let msgs=baseMsgs();
+    while(rounds<4){
+      const body={model,messages:msgs,temperature:+$('chatTemp').value,max_tokens:+$('chatMaxTok').value,stream,...thinkingParams()};
+      if(defs.length)body.tools=toOpenAITools(defs);
+      if(!stream){
+        const j=await (await jfetch('/v1/chat/completions',{method:'POST',body:JSON.stringify(body),signal:aborter.signal})).json();
+        const ch=j.choices?.[0]?.message; pt=j.usage?.prompt_tokens||0; ct=j.usage?.completion_tokens||0;
+        const calls=ch?.tool_calls||[];
+        if(calls.length&&defs.length){ msgs.push({role:'assistant',content:ch.content||'',tool_calls:calls});
+          for(const tc of calls){ const out=await execMockTool(tc.function.name,tc.function.arguments);
+            pushMsg('tool',out,{tool_name:tc.function.name}); msgs.push({role:'tool',tool_call_id:tc.id,content:out}); }
+          rounds++; continue; }
+        let nth=ch?.reasoning_content||ch?.reasoning||'';
+        full=ch?.content||''; const ntm=/<think>([\s\S]*?)(?:<\/think>|$)/i.exec(full);
+        if(ntm){ nth=((nth?nth+'\n':'')+ntm[1]).trim(); full=full.replace(ntm[0],'').trim(); }
+        full=full||JSON.stringify(ch); pushMsg('assistant',full,nth?{thinking:nth}:{}); break;
+      }
+      // streaming SSE
+      const r=await fetch(apiBase()+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,stream_options:{include_usage:true}}),signal:aborter.signal});
+      if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,300));
+      const reader=r.body.getReader(), dec=new TextDecoder(); let buf='', acc='', think='', toolAcc={};
+      pushMsg('assistant','…'); const c=S.chats.find(x=>x.id===activeChatId); const idx=c.messages.length-1;
+      const paint=()=>{ c.messages[idx].content=acc||'…'; c.messages[idx].thinking=think||undefined;
+        const ws=$('workspace'), stick=nearBottom(ws); const el=$('chatMsgs').lastChild; if(el){el.querySelector('.msgbody').innerHTML=bodyHtml(c.messages[idx]);liveEnhance(c.messages[idx],el);} if(stick)stickScroll(ws); };
+      // Exactly-once SSE: process only COMPLETE lines per network chunk, keep the
+      // partial tail buffered. (Re-scanning the whole buffer re-applies old deltas,
+      // which renders sliding-window duplication like "The userThe user is…".)
+      const handleLine=line=>{ const t=line.trim(); if(!t.startsWith('data:'))return false; const d=t.slice(5).trim();
+        if(d==='[DONE]')return true;
+        try{ const j=JSON.parse(d); const delta=j.choices?.[0]?.delta||{};
+          if(delta.content)acc=appendChunk(acc,delta.content);
+          const rth=delta.reasoning_content||delta.reasoning||'';
+          if(rth)think=appendChunk(think,rth);
+          for(const tc of (delta.tool_calls||[])){ const i=tc.index||0; toolAcc[i]=toolAcc[i]||{id:'',name:'',args:''};
+            if(tc.id)toolAcc[i].id=tc.id; if(tc.function?.name)toolAcc[i].name=appendChunk(toolAcc[i].name,tc.function.name); if(tc.function?.arguments)toolAcc[i].args=appendChunk(toolAcc[i].args,tc.function.arguments); }
+          if(j.usage){pt=j.usage.prompt_tokens||pt;ct=j.usage.completion_tokens||ct;}
+          paint(); $('chatStats').textContent=`${ct} tok · ${((ct||acc.length/4)/((performance.now()-t0)/1000)).toFixed(1)} tok/s`;
+        }catch{} return false; };
+      let sseDone=false;
+      while(true){ const {done,value}=await reader.read(); if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split('\n'); buf=lines.pop(); // incomplete tail stays buffered
+        for(const line of lines) if(handleLine(line)){ sseDone=true; break; }
+        if(sseDone)break; }
+      if(!sseDone&&buf.trim())handleLine(buf); // trailing line without newline
+      const stm=/<think>([\s\S]*?)(?:<\/think>|$)/i.exec(acc);
+      if(stm){ think=((think?think+'\n':'')+stm[1]).trim(); acc=acc.replace(stm[0],'').trim(); }
+      full=acc; c.messages[idx].content=full||'(no content)'; c.messages[idx].thinking=think||undefined;
+      const calls=Object.values(toolAcc).filter(t=>t.name);
+      if(calls.length&&defs.length){ c.messages[idx].content=full||`(calling ${calls.map(t=>t.name).join(', ')})`;
+        for(const tc of calls){ const out=await execMockTool(tc.name,tc.args);
+          pushMsg('tool',out,{tool_name:tc.name}); msgs=baseMsgs(); }
+        rounds++; save(); renderMessages(); continue; }
+      save(); renderMessages(); break;
+    }
+    const secs=(performance.now()-t0)/1000;
+    $('chatStats').textContent=`prompt ${pt} · completion ${ct} · ${secs.toFixed(1)}s · ${(ct/Math.max(secs,.01)).toFixed(1)} tok/s`;
+    const c=S.chats.find(x=>x.id===activeChatId); if(c&&c.messages.length){c.messages[c.messages.length-1].stats=`${ct}tok ${(ct/Math.max(secs,.01)).toFixed(1)}t/s`;save();renderMessages();renderChats();}
+  }
+  async function anthropicLoop(){
+    let msgs=baseMsgs().filter(m=>m.role!=='system').map(m=>({...m,content:anthropicContent(m.content)}));
+    while(rounds<4){
+      const body={model,messages:msgs,max_tokens:+$('chatMaxTok').value,temperature:+$('chatTemp').value,stream};
+      if(defs.length)body.tools=toAnthropicTools(defs);
+      if(!stream){
+        const j=await (await jfetch('/v1/messages',{method:'POST',body:JSON.stringify(body),signal:aborter.signal})).json();
+        pt=j.usage?.input_tokens||0; ct=j.usage?.output_tokens||0;
+        const blocks=j.content||[]; const uses=blocks.filter(b=>b.type==='tool_use');
+        full=blocks.filter(b=>b.type==='text').map(b=>b.text).join('');
+        if(uses.length&&defs.length){ msgs.push({role:'assistant',content:uses.map(u=>`[tool_use ${u.name} ${JSON.stringify(u.input)}]`).join('\n')||full});
+          for(const u of uses){ const out=await execMockTool(u.name,JSON.stringify(u.input));
+            pushMsg('tool',out,{tool_name:u.name}); msgs.push({role:'user',content:`[tool_result ${u.name}]\n${out}`}); }
+          rounds++; continue; }
+        pushMsg('assistant',full||JSON.stringify(j).slice(0,2000)); break;
+      }
+      const r=await fetch(apiBase()+'/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:JSON.stringify(body),signal:aborter.signal});
+      if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,300));
+      const reader=r.body.getReader(), dec=new TextDecoder(); let buf='',acc='';
+      pushMsg('assistant','…'); const c=S.chats.find(x=>x.id===activeChatId); const idx=c.messages.length-1;
+      while(true){ const {done,value}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true});
+        const chunks=buf.split('\n\n'); buf=chunks.pop();
+        for(const ch of chunks){ const m=/data:\s*(\{.*\})/s.exec(ch); if(!m)continue;
+          try{ const j=JSON.parse(m[1]); if(j.type==='content_block_delta'&&j.delta?.text)acc=appendChunk(acc,j.delta.text);
+            if(j.type==='message_delta'&&j.usage)ct=j.usage.output_tokens||ct;
+            c.messages[idx].content=acc||'…'; const ws=$('workspace'), stick=nearBottom(ws); const el=$('chatMsgs').lastChild; if(el){el.querySelector('.msgbody').innerHTML=bodyHtml(c.messages[idx]);liveEnhance(c.messages[idx],el);} if(stick)stickScroll(ws);
+            $('chatStats').textContent=`${acc.length} chars streaming…`; }catch{} } }
+      full=acc; c.messages[idx].content=full; save(); renderMessages(); break;
+    }
+    const secs=(performance.now()-t0)/1000;
+    $('chatStats').textContent=`≈${Math.ceil(full.length/4)} tok · ${secs.toFixed(1)}s · ${(Math.ceil(full.length/4)/Math.max(secs,.01)).toFixed(1)} tok/s`;
+  }
+  // ── OpenAI Responses API (POST /v1/responses), stream + MCP function_call loop ──
+  async function responsesLoop(){
+    const toInput=()=>baseMsgs().filter(m=>m.role!=='system').map(m=>({role:m.role==='assistant'?'assistant':'user',content:respContent(m.content)}));
+    const toRespTools=defs=>defs.map(d=>({type:'function',name:d.name,description:d.description||'',parameters:d.input_schema||{type:'object',properties:{}}}));
+    const harvest=(output)=>{ // -> {text, think, calls:[{call_id,name,args}]}
+      let text='', think=''; const calls=[];
+      for(const item of (output||[])){
+        if(item.type==='function_call'){ calls.push({call_id:item.call_id||item.id,name:item.name,args:item.arguments||'{}'}); continue; }
+        if(/reasoning|thinking/i.test(item.type||'')){ think+=JSON.stringify(item.summary||item.content||item).slice(0,4000); continue; }
+        for(const p of (item.content||[])){
+          if(p.type==='output_text'||p.type==='text'||p.type==='input_text')text+=p.text||'';
+          else if(/reasoning|summary/i.test(p.type||''))think+=p.text||JSON.stringify(p).slice(0,2000);
+        }
+      }
+      return {text,think:think.trim(),calls};
+    };
+    let input=toInput();
+    while(rounds<4){
+      const body={model,input,max_output_tokens:+$('chatMaxTok').value,temperature:+$('chatTemp').value,stream,...thinkingParams()};
+      if(defs.length)body.tools=toRespTools(defs);
+      if(!stream){
+        const j=await (await jfetch('/v1/responses',{method:'POST',body:JSON.stringify(body),signal:aborter.signal})).json();
+        pt=j.usage?.input_tokens||0; ct=j.usage?.output_tokens||0;
+        const {text,think,calls}=harvest(j.output);
+        if(calls.length&&defs.length){
+          pushMsg('assistant',text||`(calling ${calls.map(c=>c.name).join(', ')})`,think?{thinking:think}:{});
+          input.push({role:'assistant',content:text});
+          for(const fc of calls){ const out=await execMockTool(fc.name,fc.args);
+            pushMsg('tool',out,{tool_name:fc.name});
+            input.push({type:'function_call_output',call_id:fc.call_id,output:out}); }
+          rounds++; continue;
+        }
+        full=text; pushMsg('assistant',text||JSON.stringify(j).slice(0,2000),think?{thinking:think}:{}); break;
+      }
+      const r=await fetch(apiBase()+'/v1/responses',{method:'POST',headers:{'Content-Type':'application/json','Accept':'text/event-stream'},body:JSON.stringify(body),signal:aborter.signal});
+      if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,300));
+      if((r.headers.get('content-type')||'').includes('application/json')){ // server ignored stream:true
+        const j=await r.json(); pt=j.usage?.input_tokens||0; ct=j.usage?.output_tokens||0;
+        const {text,think,calls}=harvest(j.output);
+        if(calls.length&&defs.length){ pushMsg('assistant',text||'(calling tools)',think?{thinking:think}:{}); input.push({role:'assistant',content:text});
+          for(const fc of calls){ const out=await execMockTool(fc.name,fc.args); pushMsg('tool',out,{tool_name:fc.name}); input.push({type:'function_call_output',call_id:fc.call_id,output:out}); }
+          rounds++; continue; }
+        full=text; pushMsg('assistant',text,think?{thinking:think}:{}); break;
+      }
+      const reader=r.body.getReader(), dec=new TextDecoder(); let buf='', acc='', think='';
+      const calls={};
+      pushMsg('assistant','…'); const c=S.chats.find(x=>x.id===activeChatId); const idx=c.messages.length-1;
+      const paint=()=>{ c.messages[idx].content=acc||'…'; c.messages[idx].thinking=think||undefined;
+        const ws=$('workspace'), stick=nearBottom(ws); const el=$('chatMsgs').lastChild; if(el){el.querySelector('.msgbody').innerHTML=bodyHtml(c.messages[idx]);liveEnhance(c.messages[idx],el);} if(stick)stickScroll(ws); };
+      while(true){ const {done,value}=await reader.read(); if(done)break; buf+=dec.decode(value,{stream:true});
+        const blocks=buf.split('\n\n'); buf=blocks.pop();
+        for(const bl of blocks){ const dm=/data:\s*(\{.*\})/s.exec(bl); if(!dm)continue;
+          try{ const j=JSON.parse(dm[1]), ty=j.type||'';
+            if(ty==='response.output_text.delta')acc=appendChunk(acc,j.delta||'');
+            else if(/reasoning/i.test(ty))think=appendChunk(think,j.delta||j.text||j.summary||'');
+            else if(ty==='response.output_item.done'&&j.item?.type==='function_call')calls[j.item.call_id||j.item.id]={call_id:j.item.call_id||j.item.id,name:j.item.name,args:j.item.arguments||'{}'};
+            else if(ty==='response.completed'||ty==='response.done'){ const u=j.response?.usage||j.usage; if(u){pt=u.input_tokens||pt;ct=u.output_tokens||ct;} }
+            else if(j.usage){pt=j.usage.input_tokens||pt;ct=j.usage.output_tokens||ct;}
+            paint(); $('chatStats').textContent=`${acc.length} chars streaming (responses)…`;
+          }catch{} } }
+      full=acc; c.messages[idx].content=full||'(no content)'; c.messages[idx].thinking=think||undefined;
+      const fcs=Object.values(calls);
+      if(fcs.length&&defs.length){ c.messages[idx].content=full||`(calling ${fcs.map(f=>f.name).join(', ')})`; save(); renderMessages();
+        input.push({role:'assistant',content:full});
+        for(const fc of fcs){ const out=await execMockTool(fc.name,fc.args);
+          pushMsg('tool',out,{tool_name:fc.name}); input.push({type:'function_call_output',call_id:fc.call_id,output:out}); }
+        rounds++; continue; }
+      save(); renderMessages(); break;
+    }
+    const s2=(performance.now()-t0)/1000;
+    $('chatStats').textContent=`in ${pt} · out ${ct} · ${s2.toFixed(1)}s · ${(ct/Math.max(s2,.01)).toFixed(1)} tok/s`;
+  }
+}
+
+/* ── regenerate / edit-resend (branching: previous replies kept as variants) ── */
+async function resendFrom(uIdx){
+  const c=S.chats.find(x=>x.id===activeChatId); if(!c||c.messages[uIdx]?.role!=='user')return;
+  if(streaming)return toast('stop the current reply first',false);
+  const tail=c.messages.splice(uIdx+1);
+  let prev=[];
+  const fa=tail.find(m=>m.role==='assistant');
+  if(fa)prev=(Array.isArray(fa.alts)&&fa.alts.length)?fa.alts.map(a=>({...a}))
+    :[{content:fa.content,thinking:fa.thinking,stats:fa.stats,ts:fa.ts}];
+  S._pendingAlts=prev; touch(c); save(); renderMessages(); renderChats();
+  await sendChat({fromIdx:uIdx});
+  const c2=S.chats.find(x=>x.id===activeChatId); if(!c2){S._pendingAlts=null;return;}
+  let cand=null; c2.messages.forEach((m,i)=>{ if(i>uIdx&&m.role==='assistant')cand=m; });
+  const pend=S._pendingAlts; S._pendingAlts=null;
+  if(pend?.length){
+    if(cand&&!(cand.content||'').startsWith('[request error]')){
+      cand.alts=[...pend,{content:cand.content,thinking:cand.thinking,stats:cand.stats,ts:cand.ts}];
+      cand.altIdx=cand.alts.length-1;
+    }else{ // regen failed: restore the previous reply so nothing is lost
+      if(cand)c2.messages.splice(c2.messages.indexOf(cand),1);
+      const r=pend[0];
+      c2.messages.splice(uIdx+1,0,{role:'assistant',content:r.content,thinking:r.thinking,stats:r.stats,ts:r.ts,alts:pend,altIdx:0});
+    }
+    touch(c2); save(); renderMessages();
+  }
+}
+/* ── auto title (one short non-streaming call after the first reply) ── */
+async function genTitle(c){
+  if(c._titling)return; c._titling=true; // single-flight: replies can complete back-to-back
+  try{
+    const fu=c.messages.find(m=>m.role==='user');
+    const fa=[...c.messages].reverse().find(m=>m.role==='assistant');
+    // titleAuto = heuristic user-text title from pushMsg (real "New chat" is usually
+    // already replaced by send time); never overwrite a manual rename or prior title.
+    if(!fu||!fa||!(c.title==='New chat'||c.titleAuto))return;
+    const prompt='Summarize this chat in 5 words or fewer. Reply with ONLY the title, no quotes:\nUser: '
+      +String(fu.content||'').slice(0,300)+'\nAssistant: '+String(curView(fa).content||'').slice(0,300);
+    const r=await jfetch('/v1/chat/completions',{method:'POST',body:JSON.stringify({model:c.model||$('chatModel').value,
+      messages:[{role:'user',content:prompt}],max_tokens:32,temperature:0.2,stream:false,
+      chat_template_kwargs:{enable_thinking:false}})}); // thinking off: reasoning would eat the tiny budget
+    const j=await r.json();
+    const t=(j.choices?.[0]?.message?.content||'').trim().replace(/^["'“”]+|["'“”.,;:!?\s]+$/g,'').slice(0,60);
+    if(t&&(c.title==='New chat'||c.titleAuto)){ c.title=t; c.titleAuto=false; save(); renderChats(); }
+  }catch{}finally{ c._titling=false; }
+}
+/* ── conversation export ── */
+function download(name,text,type){ const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); }
+const slug=s=>String(s||'chat').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'chat';
+function chatToMarkdown(c){
+  const L=[`# ${c.title||'chat'}`,'',`*model: ${c.model||''} · ${c.messages.length} messages · exported ${new Date().toLocaleString()}*`,''];
+  for(const m of c.messages){ if(m.hidden)continue; const v=curView(m);
+    if(m.role==='user'){ L.push('## User','',v.content||'','');
+      if(v.attach?.length)L.push(`*(${v.attach.length} image${v.attach.length===1?'':'s'} attached — see HTML export)*`,''); }
+    else if(m.role==='assistant'){ L.push('## Assistant','');
+      if(v.thinking)L.push('<details><summary>💭 thinking</summary>','',v.thinking,'','</details>','');
+      L.push(v.content||'(no content)','');
+      if(m.alts&&m.alts.length>1)L.push(`*(${(m.alts.length)} variants — showing ${(m.altIdx||0)+1})*`,''); }
+    else if(m.role==='tool'){ L.push(`### Tool${m.tool_name?' ('+m.tool_name+')':''}`,'','```',v.content||'','```',''); } }
+  return L.join('\n'); }
+function chatToHTML(c){
+  const css='body{background:#0b0e14;color:#e6e9f0;font:14px/1.55 system-ui,sans-serif;max-width:820px;margin:0 auto;padding:24px}'
+    +'.meta{opacity:.65;font-size:12px;margin:4px 0 20px}.m{border:1px solid #263043;border-radius:10px;padding:12px;margin:12px 0}'
+    +'.m.user{background:rgba(59,130,246,.12)}.m.assistant{background:rgba(148,163,184,.08)}.m.tool{background:rgba(16,185,129,.08)}'
+    +'.who{font-size:11px;opacity:.6;margin-bottom:6px}pre{background:#0d1117;border:1px solid #334155;border-radius:8px;padding:10px;overflow-x:auto;font-size:12px}'
+    +'code{font-family:ui-monospace,Menlo,Consolas,monospace}table{border-collapse:collapse}th,td{border:1px solid #334155;padding:4px 10px}'
+    +'blockquote{border-left:3px solid #475569;padding-left:10px;opacity:.85}a{color:#60a5fa}details{margin:6px 0}summary{cursor:pointer;font-size:12px;opacity:.75}';
+  let h=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${esc(c.title||'chat')}</title><style>${css}</style></head><body><h1>${esc(c.title||'chat')}</h1><div class="meta">model: ${esc(c.model||'')} · ${c.messages.length} messages · exported ${esc(new Date().toLocaleString())}</div>`;
+  for(const m of c.messages){ if(m.hidden)continue; const v=curView(m);
+    h+=`<div class="m ${m.role}"><div class="who">${esc(m.role)}${m.tool_name?' · '+esc(m.tool_name):''}${v.stats?' · '+esc(v.stats):''}</div>`;
+    if(v.thinking)h+=`<details><summary>💭 thinking</summary>${md(v.thinking)}</details>`;
+    h+=m.role==='assistant'?md(v.content||'(no content)'):`<div style="white-space:pre-wrap">${esc(v.content||'')}</div>`
+      +(v.attach?.length?`<div>${v.attach.map(u=>`<img src="${u}" style="max-width:220px;border-radius:8px;margin:4px 4px 0 0">`).join('')}</div>`:'');
+    if(m.alts&&m.alts.length>1)h+=`<div class="who">${m.alts.length} variants — showing ${(m.altIdx||0)+1}</div>`;
+    h+=`</div>`; }
+  return h+'</body></html>'; }
+
+/* ── COMPLETION / INFILL ── */
+$('compEndpoint').addEventListener('change',e=>$('compSuffixWrap').style.display=e.target.value==='/infill'?'':'none');
+$('compSuffixWrap').style.display='none';
+$('btnComplete').addEventListener('click',async()=>{
+  const ep=$('compEndpoint').value, model=$('compModel').value;
+  $('compOut').textContent='…';
+  try{
+    if(ep==='/infill'){ // llama.cpp infill shape {input_prefix,input_suffix,...}; also try prompt/suffix fallback
+      const payload={model,input_prefix:$('compPrompt').value,input_suffix:$('compSuffix').value,max_tokens:+$('compMaxTok').value,temperature:+$('compTemp').value};
+      try{ var j=await (await jfetch('/infill',{method:'POST',body:JSON.stringify(payload)})).json(); }
+      catch(e){ j=await (await jfetch('/infill',{method:'POST',body:JSON.stringify({model,prompt:$('compPrompt').value,suffix:$('compSuffix').value})})).json(); }
+      $('compOut').textContent=j.content||j.completion||j.choices?.[0]?.text||JSON.stringify(j,null,2);
+    }else{
+      const j=await (await jfetch('/v1/completions',{method:'POST',body:JSON.stringify({model,prompt:$('compPrompt').value,max_tokens:+$('compMaxTok').value,temperature:+$('compTemp').value})})).json();
+      $('compOut').textContent=(j.choices?.[0]?.text||'')+`\n\n— usage ${j.usage?.prompt_tokens}/${j.usage?.completion_tokens} · ${j.timings?.predicted_per_second?.toFixed?.(1)??''} tok/s`;
+    }
+  }catch(e){ $('compOut').textContent='ERROR: '+e.message; }
+});
+
+/* ── IMAGE ── */
+let lastSeed=null, srcDataUrl=null;
+$('imgPreset').addEventListener('change',e=>{ const [w,h]=e.target.value.split('x').map(Number); if(w&&h){$('imgW').value=w;$('imgH').value=h;} });
+$('imgTask').addEventListener('change',e=>$('imgUploadWrap').classList.toggle('hidden',e.target.value!=='img2img'));
+$('btnSeedRand').addEventListener('click',()=>$('imgSeed').value=Math.floor(Math.random()*2**31));
+$('btnSeedRecycle').addEventListener('click',()=>{ if(lastSeed!=null)$('imgSeed').value=lastSeed; else toast('no seed yet',false); });
+$('imgFile').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f)return; const img=new Image();
+  img.onload=()=>{ const cv=$('imgCanvas'); const sc=Math.min(1,512/img.width); cv.width=img.width*sc; cv.height=img.height*sc;
+    cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); srcDataUrl=cv.toDataURL('image/png'); URL.revokeObjectURL(img.src); };
+  img.src=URL.createObjectURL(f); });
+$('btnLoras').addEventListener('click',async()=>{ try{
+    let loras=[];
+    for(const u of [`/sdapi/v1/loras?model=${encodeURIComponent($('imgModel').value)}`,`/sdapi/v1/loras`,`/sdapi/v1/sd-models`]){
+      try{ const r=await fetch(apiBase()+u); if(r.ok){ const j=await r.json(); loras=j.loras||j.models||j||[]; if(loras.length)break; } }catch{} }
+    $('imgLora').innerHTML='<option value="">(none)</option>'+(Array.isArray(loras)?loras.map(l=>`<option>${esc(l.name||l.model_name||l)}</option>`).join(''):'');
+    toast(`LoRAs: ${$('imgLora').options.length-1} found (may be 0 if backend lacks sdapi)`);
+  }catch(e){ toast(e.message,false); } });
+function dataUrlToBlob(d){ const [h,b]=d.split(','); const m=/data:(.*?);/.exec(h); const bin=atob(b); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i); return new Blob([a],{type:m?.[1]||'image/png'}); }
+$('btnImgGen').addEventListener('click',async()=>{
+  const model=$('imgModel').value, prompt=$('imgPrompt').value.trim(), W=+$('imgW').value, H=+$('imgH').value;
+  let seed=+$('imgSeed').value; if(seed<0)seed=Math.floor(Math.random()*2**31);
+  $('imgSeed').value=seed; lastSeed=seed;
+  const size=`${W}x${H}`, task=$('imgTask').value, api=$('imgApi').value, lora=$('imgLora').value;
+  $('imgMeta').textContent='generating…'; $('imgOut').innerHTML='';
+  const show=(src,cap)=>{ const d=document.createElement('div'); d.className='border border-slate-600 rounded p-1 bg-slate-900';
+    d.innerHTML=`<img src="${src}" class="rounded w-full"><div class="term text-[10px] opacity-70 p-1">${esc(cap)}</div>`; $('imgOut').prepend(d); };
+  try{
+    if(api==='sdapi'){ // Stable Diffusion API (may 404 if backend has no sdapi — falls back message)
+      const payload={prompt,seed,steps:+$('imgSteps').value,cfg_scale:+$('imgCfg').value,width:W,height:H,sampler_name:'Euler',...(lora?{override_settings:{sd_lora:lora}}:{})};
+      const ep=task==='img2img'?'/sdapi/v1/img2img':'/sdapi/v1/txt2img';
+      if(task==='img2img'&&srcDataUrl)payload.init_images=[srcDataUrl];
+      const j=await (await jfetch(ep,{method:'POST',body:JSON.stringify(payload)})).json();
+      (j.images||[]).forEach((b,i)=>show('data:image/png;base64,'+b,`sdapi ${ep} seed=${seed} ${size}`));
+      $('imgMeta').textContent=`sdapi done seed=${seed}`;
+      if(!(j.images||[]).length)$('imgMeta').textContent='sdapi empty response: '+JSON.stringify(j).slice(0,200);
+    }else if(task==='img2img'||$('imgFile').files[0]){
+      const fd=new FormData(); fd.append('model',model); fd.append('prompt',prompt); fd.append('size',size); fd.append('n','1');
+      if(srcDataUrl)fd.append('image',dataUrlToBlob(srcDataUrl),'input.png');
+      else if($('imgFile').files[0])fd.append('image',$('imgFile').files[0]);
+      const r=await fetch(apiBase()+'/v1/images/edits',{method:'POST',body:fd}); if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,300));
+      const j=await r.json(); (j.data||[]).forEach((d,i)=>show(d.b64_json?'data:image/png;base64,'+d.b64_json:d.url,`edit seed=${seed} ${size}`));
+      $('imgMeta').textContent=`edit done seed=${seed}`;
+    }else{
+      const j=await (await jfetch('/v1/images/generations',{method:'POST',body:JSON.stringify({model,prompt,size,n:1,seed,steps:+$('imgSteps').value,guidance_scale:+$('imgCfg').value})})).json();
+      (j.data||[]).forEach(d=>show(d.b64_json?'data:image/png;base64,'+d.b64_json:d.url,`seed=${seed} ${size}`));
+      $('imgMeta').textContent=`done seed=${seed} created=${j.created||''}`;
+    }
+  }catch(e){ $('imgMeta').textContent='ERROR: '+e.message; toast(e.message,false); }
+});
+
+/* ── TTS ── */
+const KOKORO_VOICES=['af_bella','af_heart','af_nicole','af_nova','af_sarah','af_sky','am_adam','am_michael','bf_emma','bf_isabella','bm_george','bm_lewis'];
+function parseVoiceMix(s){ // validate kokoro weighting syntax voice(w)+voice(w)
+  const parts=String(s||'').split('+').map(x=>x.trim()).filter(Boolean);
+  return parts.map(p=>{ const m=/(.+?)(?:\(([\d.]+)\))?$/.exec(p); return {voice:m[1].trim(),weight:m[2]?+m[2]:1}; }); }
+async function loadVoices(){ const mdl=$('ttsModel').value;
+  let list=[];
+  // NOTE: bare /v1/audio/voices 404s on llama-swap (needs ?model=), so try model-qualified first.
+  for(const u of ['/v1/audio/voices?model='+encodeURIComponent(mdl),'/v1/audio/voices','/audioapi/v1/voices']){
+    try{ const r=await fetch(apiBase()+u); if(r.ok){ const j=await r.json(); const arr=j.voices||j.data||j||[]; list=arr.map(v=>v.id||v.name||v.voice||v).filter(Boolean).map(String); if(list.length)break; } }catch{} }
+  if(!list.length)list=[...KOKORO_VOICES]; // fallback: /v1/audio/voices 404 on this server
+  $('ttsVoice').innerHTML=list.map(v=>`<option>${esc(v)}</option>`).join('');
+  if(!$('ttsVoiceMix').value)$('ttsVoiceMix').value=list[0]||'af_bella';
+}
+$('btnTtsVoices').addEventListener('click',loadVoices);
+$('btnVoiceAdd').addEventListener('click',()=>{ const v=$('ttsVoice').value,w=prompt(`Weight for ${v}:`,'1');
+  if(v)$('ttsVoiceMix').value=($('ttsVoiceMix').value?$('ttsVoiceMix').value+'+':'')+v+(w&&+w!==1?`(${w})`:''); });
+$('btnTts').addEventListener('click',async()=>{
+  const model=$('ttsModel').value, mix=$('ttsVoiceMix').value.trim()||$('ttsVoice').value;
+  const isKokoro=/kokoro|tts-1/i.test(model);
+  if(isKokoro){ const parsed=parseVoiceMix(mix); $('ttsMsg').textContent='voice mix → '+parsed.map(p=>`${p.voice}×${p.weight}`).join(' + '); }
+  try{
+    const r=await fetch(apiBase()+'/v1/audio/speech',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model,input:$('ttsInput').value,voice:mix,response_format:$('ttsFormat').value,speed:+$('ttsSpeed').value})});
+    if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,300));
+    const blob=await r.blob(), url=URL.createObjectURL(blob);
+    $('ttsAudio').src=url; $('ttsAudio').classList.remove('hidden'); $('ttsAudio').play().catch(()=>{});
+    $('ttsDl').href=url; $('ttsDl').download='tts.'+$('ttsFormat').value; $('ttsDl').classList.remove('hidden');
+    $('ttsMsg').textContent+=` · ${(blob.size/1024).toFixed(1)} KB ${blob.type}`;
+  }catch(e){ $('ttsMsg').textContent='ERROR: '+e.message; }
+});
+
+/* ── TRANSCRIBE ── */
+let sttBlob=null, mediaRec=null, micChunks=[];
+for(const ev of ['dragover','dragenter'])$('sttDrop').addEventListener(ev,e=>{e.preventDefault();$('sttDrop').classList.add('drop-active');});
+for(const ev of ['dragleave','drop'])$('sttDrop').addEventListener(ev,e=>{e.preventDefault();$('sttDrop').classList.remove('drop-active');});
+$('sttDrop').addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f)setSttFile(f); });
+$('sttFile').addEventListener('change',e=>{ if(e.target.files[0])setSttFile(e.target.files[0]); });
+function setSttFile(f){ sttBlob=f; $('sttPreview').src=URL.createObjectURL(f); $('sttPreview').classList.remove('hidden'); $('micStatus').textContent=f.name+' '+(f.size/1024).toFixed(0)+'KB'; }
+// MediaRecorder emits webm/opus (.weba) which whisper backends reject — transcode to 16kHz mono WAV in-browser.
+async function blobToWav16k(blob){
+  const AC=window.AudioContext||window.webkitAudioContext; if(!AC)throw new Error('no AudioContext');
+  const raw=await blob.arrayBuffer();
+  const ctx=new AC(); let audio;
+  try{ audio=await ctx.decodeAudioData(raw); }
+  catch(e){ try{ctx.close();}catch(_){} throw new Error('could not decode recording ('+e.message+')'); }
+  const rate=16000, len=Math.max(1,Math.floor(audio.duration*rate));
+  const off=new OfflineAudioContext(1,len,rate);
+  const src=off.createBufferSource(); src.buffer=audio; src.connect(off.destination); src.start(0);
+  const rendered=await off.startRendering(); try{ctx.close();}catch(_){}
+  const ch=rendered.getChannelData(0), n=ch.length, buf=new ArrayBuffer(44+n*2), v=new DataView(buf);
+  const wstr=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  wstr(0,'RIFF'); v.setUint32(4,36+n*2,true); wstr(8,'WAVE'); wstr(12,'fmt '); v.setUint32(16,16,true);
+  v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,rate,true); v.setUint32(28,rate*2,true);
+  v.setUint16(32,2,true); v.setUint16(34,16,true); wstr(36,'data'); v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){ const s=Math.max(-1,Math.min(1,ch[i])); v.setInt16(44+i*2,s<0?s*0x8000:s*0x7FFF,true); }
+  return new Blob([buf],{type:'audio/wav'});
+}
+$('btnMic').addEventListener('click',async()=>{ try{
+    const s=await navigator.mediaDevices.getUserMedia({audio:true}); mediaRec=new MediaRecorder(s); micChunks=[];
+    mediaRec.ondataavailable=e=>micChunks.push(e.data);
+    mediaRec.onstop=async()=>{ const raw=new Blob(micChunks,{type:mediaRec.mimeType||'audio/webm'});
+      $('micStatus').textContent='converting mic audio to 16kHz WAV…';
+      try{ const wav=await blobToWav16k(raw); sttBlob=new File([wav],'recording.wav',{type:'audio/wav'});
+        $('micStatus').textContent='recorded '+(sttBlob.size/1024).toFixed(0)+'KB (16kHz mono WAV ✓)'; }
+      catch(e){ sttBlob=new File([raw],'recording.weba',{type:raw.type||'audio/webm'});
+        $('micStatus').textContent='WAV convert failed ('+e.message+') — kept raw .weba, server may reject it'; }
+      $('sttPreview').src=URL.createObjectURL(sttBlob); $('sttPreview').classList.remove('hidden'); };
+    mediaRec.start(); $('btnMicStop').disabled=false; $('btnMic').disabled=true; $('micStatus').textContent='● recording…';
+  }catch(e){ toast('mic: '+e.message,false); } });
+$('btnMicStop').addEventListener('click',()=>{ mediaRec?.stop(); mediaRec?.stream?.getTracks().forEach(t=>t.stop()); $('btnMicStop').disabled=true; $('btnMic').disabled=false; });
+$('btnTranscribe').addEventListener('click',async()=>{ if(!sttBlob)return toast('no audio selected',false);
+  $('sttOut').textContent='transcribing…';
+  try{ const fd=new FormData(); fd.append('file',sttBlob,'audio.'+(sttBlob.name?.split('.').pop()||'wav')); fd.append('model',$('sttModel').value);
+    if($('sttLang').value)fd.append('language',$('sttLang').value);
+    const r=await fetch(apiBase()+'/v1/audio/transcriptions',{method:'POST',body:fd}); if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,500));
+    const j=await r.json(); $('sttOut').textContent=j.text||JSON.stringify(j,null,2);
+  }catch(e){ $('sttOut').textContent='ERROR: '+e.message; } });
+
+/* ── EMBED / RERANK ── */
+$('btnEmbed').addEventListener('click',async()=>{ $('embOut').textContent='…';
+  try{ const model=$('embModel').value;
+    const get=async t=>(await (await jfetch('/v1/embeddings',{method:'POST',body:JSON.stringify({model,input:t})})).json()).data[0].embedding;
+    const [a,b]=[await get($('embA').value),await get($('embB').value)];
+    const cos=a.reduce((s,v,i)=>s+v*b[i],0)/(Math.hypot(...a)*Math.hypot(...b));
+    $('embOut').textContent=`dims: ${a.length}\ncosine(A,B) = ${cos.toFixed(4)}\n\nA[:16] = [${a.slice(0,16).map(v=>v.toFixed(4)).join(', ')} …]\nB[:16] = [${b.slice(0,16).map(v=>v.toFixed(4)).join(', ')} …]`;
+  }catch(e){ $('embOut').textContent='ERROR: '+e.message; } });
+$('btnRerank').addEventListener('click',async()=>{ $('rerOut').textContent='…';
+  try{ const docs=$('rerDocs').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const j=await (await jfetch('/v1/rerank',{method:'POST',body:JSON.stringify({model:$('rerModel').value,query:$('rerQuery').value,documents:docs})})).json();
+    const res=(j.results||j.data||[]).map(r=>({i:r.index??r.document?.index,score:r.relevance_score??r.score})).sort((a,b)=>b.score-a.score);
+    $('rerOut').textContent=res.map(r=>`[${r.score?.toFixed?.(3)??r.score}] doc#${r.i}: ${docs[r.i]}`).join('\n')||JSON.stringify(j,null,2);
+  }catch(e){ $('rerOut').textContent='ERROR: '+e.message; } });
+
+/* ── SYSTEM ── */
+async function loadRunning(){ try{ const j=await (await fetch(apiBase()+'/running')).json(); const arr=j.running||j.models||j.data||[];
+    $('runningList').innerHTML=arr.length?arr.map(m=>{ const id=m.model||m.id||m.name||JSON.stringify(m);
+      return `<div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded px-2 py-1"><span class="term flex-1">🟢 ${esc(id)}</span><button data-u="${esc(id)}" class="px-2 py-0.5 rounded bg-red-800 hover:bg-red-700">Unload</button></div>`; }).join('')
+      :'<div class="opacity-60">No models loaded.</div>';
+    $('runningList').querySelectorAll('[data-u]').forEach(b=>b.addEventListener('click',()=>unloadModel(b.dataset.u)));
+    $('sysStatus').textContent=`System Status: 🟢 Running (${arr.length} models active)`;
+  }catch(e){ $('runningList').innerHTML='<div class="opacity-70">'+esc(netErr(e))+'</div>'; } }
+async function unloadModel(id){ try{ const r=await fetch(apiBase()+'/api/models/unload/'+encodeURIComponent(id),{method:'POST'});
+    if(!r.ok){ // fallback: global unload
+      await fetch(apiBase()+'/api/models/unload',{method:'POST'}); }
+    toast('unload sent: '+id); loadRunning(); }catch(e){ toast(netErr(e),false); } }
+async function unloadAll(){ try{ await fetch(apiBase()+'/api/models/unload',{method:'POST'}); toast('unload-all sent'); loadRunning(); }catch(e){ toast(netErr(e),false); } }
+$('btnRunning').addEventListener('click',loadRunning);
+$('btnUnloadAll').addEventListener('click',unloadAll);
+$('btnUnloadAll2').addEventListener('click',unloadAll);
+async function loadProfiles(deep=false){
+  const setPh=t=>{ $('selProfile').innerHTML=`<option value="">${esc(t)}</option>`; $('selProfile2').innerHTML=$('selProfile').innerHTML; };
+  const fill=names=>{ $('selProfile').innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join(''); $('selProfile2').innerHTML=$('selProfile').innerHTML; };
+  const read=async r=>{ const j=await r.json().catch(()=>null); const arr=j?.profiles||j?.data||(Array.isArray(j)?j:[]);
+    return arr.map(p=>p.name||p.id||p).filter(Boolean).map(String); };
+  // Primary endpoint first: returns 200 even when empty, so boot discovery is console-noise-free.
+  try{ const r=await fetch(apiBase()+'/api/profiles');
+    if(r.ok){ const names=await read(r);
+      if(names.length){ fill(names); return; }
+      if(!deep){ setPh('(no profiles configured on server)'); return; } } }
+  catch(e){ if(isBlocked(e)){ showCorsBanner(); setPh('(blocked by CORS — use same-origin proxy)'); return; } }
+  if(!deep){ setPh('(profiles unavailable — press Refresh to retry)'); return; }
+  // Manual Refresh only: probe legacy layouts (a 404 here is discovery working as intended).
+  for(const u of ['/profiles','/api/profiles/active']){
+    try{ const r=await fetch(apiBase()+u); if(r.ok){ const names=await read(r); if(names.length){ fill(names); return; } } }catch{} }
+  setPh('(no profiles endpoint on server)');
+}
+async function applyProfile(v){ if(!v)return; for(const u of ['/api/profiles/active','/profiles/active']){
+    try{ const r=await fetch(apiBase()+u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:v,name:v})}); if(r.ok){toast('profile → '+v);return;} }catch{} }
+  toast('profile switch unsupported by server',false); }
+$('btnProfiles').addEventListener('click',()=>loadProfiles(true));
+$('btnProfileApply').addEventListener('click',()=>applyProfile($('selProfile').value));
+$('selProfile2').addEventListener('change',e=>applyProfile(e.target.value));
+$('btnHealth').addEventListener('click',async()=>{ try{ const t=await (await fetch(apiBase()+'/health')).text(); $('sysHealth').textContent=t.trim()+' '+(t.trim()==='OK'?'🟢':'🟡'); $('healthDot').textContent=t.trim()==='OK'?'🟢':'🔴'; }catch(e){ $('sysHealth').textContent=netErr(e); $('healthDot').textContent='🔴'; } });
+$('btnMetrics').addEventListener('click',async()=>{ try{ const t=await (await fetch(apiBase()+'/metrics')).text();
+    const pick=n=>[...t.matchAll(new RegExp(n+'\\{?[^\\n]*\\}?\\s+([\\d.e+-]+)','g'))].map(m=>+m[1]);
+    const cpu=pick('llamaswap_cpu_util_percent'), memU=pick('llamaswap_memory_used_bytes')[0], memT=pick('llamaswap_memory_total_bytes')[0];
+    const load=pick('llamaswap_load_average');
+    $('sysMetrics').textContent=`cpu/core: ${cpu.map(v=>v.toFixed(0)+'%').join(' ')}\nmem: ${(memU/1e9).toFixed(2)} / ${(memT/1e9).toFixed(2)} GB\nload 1/5/15m: ${load.join(' / ')}\n(raw ${(t.length/1024).toFixed(1)} KB)`;
+  }catch(e){ $('sysMetrics').textContent=netErr(e); } });
+// logs — plain-text chunked stream via fetch. NOTE: EventSource is unusable
+// here by design: llama-swap's /logs/stream/* sends `Content-Type:
+// text/plain` with raw log lines (not SSE), and EventSource hard-fails on any
+// MIME type other than text/event-stream. fetch doesn't care about MIME, so
+// it is the primary (and only) transport; reconnect-with-backoff replaces
+// EventSource's built-in retry.
+let logAbort=null, logWantStop=true, logReconnects=0;
+function logLine(s){ const v=$('logView'); const stick=nearBottom(v,80); v.textContent+=(s+'\n'); if(v.textContent.length>200000)v.textContent=v.textContent.slice(-200000); if(stick)v.scrollTop=v.scrollHeight; }
+const sleepOrAbort=(ms,sig)=>new Promise((res,rej)=>{ if(sig.aborted)return rej(new DOMException('aborted','AbortError'));
+  const t=setTimeout(res,ms); sig.addEventListener('abort',()=>{clearTimeout(t);rej(new DOMException('aborted','AbortError'));},{once:true}); });
+/* auto-scroll follows only while the user is already near the bottom, so reading
+   history mid-stream never yanks the view. #workspace is the chat scroller. */
+function nearBottom(el,gap=140){ try{ return el.scrollHeight-el.scrollTop-el.clientHeight<gap; }catch{ return true; } }
+function stickScroll(el){ try{ el.scrollTop=el.scrollHeight; }catch{} }
+$('selLogStream').addEventListener('change',e=>$('selLogModel').classList.toggle('hidden',e.target.value!=='model'));
+$('btnLogConnect').addEventListener('click',()=>connectLog());
+async function connectLog(){
+  disconnectLog(true);
+  logWantStop=false; logReconnects=0;
+  let base=$('selLogStream').value; if(base==='model')base='/logs/stream/'+encodeURIComponent($('selLogModel').value||$('chatModel').value);
+  logAbort=new AbortController(); const sig=logAbort.signal;
+  let first=true;
+  while(!logWantStop){
+    // First connect pulls buffered history; reconnects use ?no-history so the
+    // backlog isn't re-dumped on every retry.
+    const url=apiBase()+(first?base:(base+(base.includes('?')?'&':'?')+'no-history'));
+    first=false;
+    try{
+      $('logState').textContent=(logReconnects?'\u{1F7E1} reconnecting '+base+'…':'connecting '+base+'…');
+      const r=await fetch(url,{headers:{Accept:'text/plain,*/*'},signal:sig});
+      if(!r.ok)throw new Error('HTTP '+r.status+' '+(await r.text()).slice(0,300));
+      $('logState').textContent='\u{1F7E2} '+base+' (live)';
+      logReconnects=0;
+      const rd=r.body.getReader(), dec=new TextDecoder(); let buf='';
+      while(true){ const {done,value}=await rd.read(); if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split('\n'); buf=lines.pop(); // keep partial line
+        for(const line of lines){ const t=line.replace(/\r$/,''); if(!t)continue;
+          logLine(t.startsWith('data:')?t.slice(5).trim():t); } }
+      if(buf.trim())logLine(buf.trim());
+      if(logWantStop)break;
+      logReconnects++; // server closed an infinite stream — back off and resume
+      $('logState').textContent='\u{1F7E1} stream closed — reconnecting…';
+      await sleepOrAbort(Math.min(5000,1000*logReconnects),sig);
+    }catch(e){
+      if(logWantStop||e.name==='AbortError')break;
+      logReconnects++;
+      $('logState').textContent='\u{1F534} '+netErr(e)+' — retrying…';
+      try{ await sleepOrAbort(Math.min(5000,1000*logReconnects),sig); }catch{ break; }
+    }
+  }
+  $('logState').textContent='disconnected';
+}
+function disconnectLog(silent){ logWantStop=true; if(logAbort){try{logAbort.abort();}catch{} logAbort=null;} if(!silent)$('logState').textContent='disconnected'; }
+$('btnLogDisconnect').addEventListener('click',disconnectLog);
+$('btnLogClear').addEventListener('click',()=>$('logView').textContent='');
+$('btnLogOnce').addEventListener('click',async()=>{ try{ const t=await (await fetch(apiBase()+'/logs')).text(); logLine('── snapshot /logs ──\n'+t.slice(-6000)); }catch(e){ toast(netErr(e),false); } });
+
+/* ── comfy ── */
+/* ── comfy: /comfyui/ only exists when a comfyui model is configured (comfyui_auto).
+   Check the already-loaded model list — no extra fetch, so no CORS involvement. ── */
+function hasComfyModel(){ return MODELS.some(m=>/comfyui/i.test(m.id||'')||/comfyui/i.test(m.name||'')); }
+function loadComfy(){ const u=apiBase()+'/comfyui/'; $('comfyUrl').textContent=u;
+  const m=$('comfyMissing');
+  if(!MODELS.length){ // models list unavailable — can't verify, let the iframe try
+    m.classList.add('hidden'); $('comfyFrame').classList.remove('hidden'); $('comfyFrame').src=u; return; }
+  if(hasComfyModel()){ m.classList.add('hidden'); $('comfyFrame').classList.remove('hidden'); $('comfyFrame').src=u; }
+  else{ $('comfyFrame').classList.add('hidden'); $('comfyFrame').removeAttribute('src');
+    m.classList.remove('hidden'); m.querySelector('.err').textContent='no comfyui model in /v1/models'; }
+}
+$('btnComfyReload').addEventListener('click',loadComfy);
+
+/* ── settings / topbar ── */
+$('btnSidebar').addEventListener('click',()=>$('sidebar').classList.toggle('hidden'));
+$('btnCorsHide').addEventListener('click',()=>$('corsBanner').classList.add('hidden'));
+$('btnSameOrigin').addEventListener('click',async()=>{ // one-click fix: only switch if this origin really proxies the API
+  try{ const r=await fetch(location.origin+'/v1/models'); if(!r.ok)throw new Error('HTTP '+r.status); await r.json();
+    S.settings.apiBaseUrl=location.origin; save(); corsWarned=false;
+    $('corsBanner').classList.add('hidden'); $('btnSameOrigin').classList.add('hidden');
+    toast('API base → '+location.origin+' (same origin, proxied)'); boot(false);
+  }catch(e){ toast('This origin does not proxy the API ('+e.message+'). Run: python serve.py --upstream http://192.168.1.22:8080 --port '+location.port+' in the WebUI folder, reload, then click again.',false); }
+});
+$('btnSettings').addEventListener('click',()=>{ $('setApiBase').value=S.settings.apiBaseUrl; $('setTheme').value=S.settings.theme; $('setChatModel').value=S.settings.defaultChatModel; $('settingsModal').classList.remove('hidden'); });
+$('btnSettingsClose').addEventListener('click',()=>$('settingsModal').classList.add('hidden'));
+$('btnSettingsSave').addEventListener('click',async()=>{ S.settings.apiBaseUrl=$('setApiBase').value.trim().replace(/\/+$/,''); S.settings.theme=$('setTheme').value; S.settings.defaultChatModel=$('setChatModel').value.trim(); save(); applyTheme(); $('settingsModal').classList.add('hidden'); await boot(false); });
+$('selApiMode').addEventListener('change',e=>{ S.settings.selectedApiMode=e.target.value; save(); });
+$('selActiveModel').addEventListener('change',e=>{ setComboValue('chatModel',e.target.value); S.settings.defaultChatModel=e.target.value; save(); });
+$('chatModel').addEventListener('change',e=>{ setComboValue('selActiveModel',e.target.value); const c=S.chats.find(x=>x.id===activeChatId); if(c){c.model=e.target.value;save();renderChats();} });
+function applyTheme(){ document.documentElement.classList.toggle('dark',S.settings.theme!=='light'); }
+$('btnExport').addEventListener('click',()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([localStorage.getItem(LS_KEY)],{type:'application/json'})); a.download='llamaswap-webui-backup.json'; a.click(); });
+$('inpImport').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{S=JSON.parse(r.result);save();location.reload();}catch(err){toast('import: '+err.message,false);} }; r.readAsText(f); });
+$('btnWipe').addEventListener('click',()=>{ if(confirm('Erase all local chats/settings?')){localStorage.removeItem(LS_KEY);location.reload();} });
+
+/* ── boot ── */
+async function boot(first=true){
+  applyTheme(); $('selApiMode').value=S.settings.selectedApiMode||'openai';
+  if(first){ renderChats(); if(!S.chats.length)newChat(false); else activeChatId=S.chats[0].id; renderChats(); renderMessages(); }
+  await refreshModels(); loadVoices(); loadRunning(); loadProfiles(); loadComfy();
+  $('btnHealth').click(); icons();
+  if(first){ // deep-link ?model=
+    const q=new URLSearchParams(location.search).get('model'); if(q){S.settings.apiBaseUrl=S.settings.apiBaseUrl; }
+  }
+}
+boot();
+</script>
+</body>
+</html>
