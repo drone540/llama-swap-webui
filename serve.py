@@ -10,7 +10,7 @@ Fix: serve this directory AND proxy API paths to llama-swap from the SAME
 origin, so CORS is never involved.
 
 Usage:
-    python serve.py --upstream http://192.168.1.22:8080 --port 8000
+    python serve.py --upstream http://localhost:8080 --port 8000
 Then open http://localhost:8000 and set the UI's API Base URL to
 http://localhost:8000
 """
@@ -178,7 +178,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     ap = argparse.ArgumentParser(description="Serve llama-swap WebUI + same-origin API proxy")
-    ap.add_argument("--upstream", default="http://192.168.1.22:8080",
+    ap.add_argument("--upstream", default="http://localhost:8080",
                     help="llama-swap base URL (default: %(default)s)")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--host", default="0.0.0.0")
