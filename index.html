@@ -363,7 +363,7 @@ Spaghetti is a kind of pasta.</textarea></label>
     <label class="px-3 py-1.5 rounded bg-slate-700 cursor-pointer" title="Import localStorage JSON">Import<input id="inpImport" type="file" accept="application/json" class="hidden"></label></div>
     <details class="text-xs bg-slate-900 border border-slate-600 rounded p-2">
       <summary class="cursor-pointer font-semibold">CORS / connection help</summary>
-      <div class="opacity-80 mt-1">llama-swap's native endpoints (<span class="term">/health /running /profiles /metrics /logs</span>) send no CORS headers, so browsers block them when the page is cross-origin (including <span class="term">file://</span>). Chat &amp; <span class="term">/v1/*</span> endpoints proxy through and work fine. For full System-tab functionality, run the bundled zero-dependency proxy next to this file:<br><span class="term">python serve.py --upstream http://192.168.1.22:8080 --port 8000</span><br>then open <span class="term">http://localhost:8000</span> and set API Base URL to <span class="term">http://localhost:8000</span> (same origin = no CORS involved).</div>
+      <div class="opacity-80 mt-1">llama-swap's native endpoints (<span class="term">/health /running /profiles /metrics /logs</span>) send no CORS headers, so browsers block them when the page is cross-origin (including <span class="term">file://</span>). Chat &amp; <span class="term">/v1/*</span> endpoints proxy through and work fine. For full System-tab functionality, run the bundled zero-dependency proxy next to this file:<br><span class="term">python serve.py --upstream http://localhost:8080 --port 8000</span><br>then open <span class="term">http://localhost:8000</span> and set API Base URL to <span class="term">http://localhost:8000</span> (same origin = no CORS involved).</div>
     </details>
     <button id="btnWipe" class="w-full text-xs text-red-400 hover:text-red-300">Erase all local data</button>
   </div>
@@ -510,7 +510,7 @@ function liveEnhance(m,el){ paintCode(el);
   if(fencesBalanced(m.content)&&fencesBalanced(m.thinking||''))paintButtons(el); }
 
 /* ── store (spec §5) ── */
-const DEFAULTS={settings:{apiBaseUrl:'http://192.168.1.22:8080',selectedApiMode:'openai',theme:'dark',defaultChatModel:'qwen2.5-bartowski-0.5b-q4_k_m'},
+const DEFAULTS={settings:{apiBaseUrl:'http://localhost:8080',selectedApiMode:'openai',theme:'dark',defaultChatModel:'qwen2.5-bartowski-0.5b-q4_k_m'},
   chats:[],folders:[],
   templates:[{name:'Summarize',text:'Summarize the following in 5 bullets:\n\n'},{name:'Code review',text:'Review this code for bugs and improvements:\n\n'},{name:'Explain ELI5',text:'Explain like I am 5 years old:\n\n'}]};
 let S;
@@ -1534,7 +1534,7 @@ $('btnSameOrigin').addEventListener('click',async()=>{ // one-click fix: only sw
     S.settings.apiBaseUrl=location.origin; save(); corsWarned=false;
     $('corsBanner').classList.add('hidden'); $('btnSameOrigin').classList.add('hidden');
     toast('API base → '+location.origin+' (same origin, proxied)'); boot(false);
-  }catch(e){ toast('This origin does not proxy the API ('+e.message+'). Run: python serve.py --upstream http://192.168.1.22:8080 --port '+location.port+' in the WebUI folder, reload, then click again.',false); }
+  }catch(e){ toast('This origin does not proxy the API ('+e.message+'). Run: python serve.py --upstream http://localhost:8080 --port '+location.port+' in the WebUI folder, reload, then click again.',false); }
 });
 $('btnSettings').addEventListener('click',()=>{ $('setApiBase').value=S.settings.apiBaseUrl; $('setTheme').value=S.settings.theme; $('setChatModel').value=S.settings.defaultChatModel; $('settingsModal').classList.remove('hidden'); });
 $('btnSettingsClose').addEventListener('click',()=>$('settingsModal').classList.add('hidden'));
